@@ -1,0 +1,32 @@
+# Normalize line endings: store LF in the repo, let each OS check out its
+# native ending. Stops the "LF will be replaced by CRLF" churn regardless of
+# anyone's core.autocrlf setting.
+* text=auto
+
+# Explicit text types (so diffs/merges always treat them as text)
+*.js    text
+*.jsx   text
+*.mjs   text
+*.cjs   text
+*.json  text
+*.css   text
+*.html  text
+*.md    text
+*.sql   text
+*.txt   text
+*.yml   text
+*.yaml  text
+
+# Binary assets — never normalize or diff as text
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.webp  binary
+*.wasm  binary
+*.ttf   binary
+*.otf   binary
+*.woff  binary
+*.woff2 binary
+*.pdf   binary
