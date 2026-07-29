@@ -2,8 +2,9 @@
 // had creation screens but Tasks didn't. Same Action/Artifact + Effort/Impact
 // pattern as NewMilestoneScreen, scoped to a single milestone.
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import EffortImpactMatrix from '../components/EffortImpactMatrix.jsx';
+import { suggestEstimate } from '../lib/calibration.js';
 
 export default function NewTaskScreen({ milestoneId, onSave, onCancel }) {
   const [title, setTitle] = useState('');
@@ -15,6 +16,15 @@ export default function NewTaskScreen({ milestoneId, onSave, onCancel }) {
   const [dayOffset, setDayOffset] = useState('0');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  const [profile, setProfile] = useState(null);
+
+  // Load the profile once so we can offer a calibration-based estimate hint.
+  useEffect(() => {
+    window.api.profile.load().then(setProfile).catch(() => {});
+  }, []);
+
+  // A suggestion for the current quadrant, if the user has enough history there.
+  const hint = suggestEstimate(profile, effort, impact, parseInt(estimatedMinutes, 10));
 
   const canSave = title.trim().length > 0;
 
@@ -69,6 +79,15 @@ export default function NewTaskScreen({ milestoneId, onSave, onCancel }) {
         <div className="split-col">
           <label className="label">Estimated minutes</label>
           <input className="input" type="number" min="0" value={estimatedMinutes} onChange={(e) => setEstimatedMinutes(e.target.value)} />
+          {hint && (
+            <p className="calibration-hint">
+              History: <strong>{hint.label}</strong> tasks run ~{hint.ratio.toFixed(1)}× your estimate
+              {' '}({hint.samples} logged). Consider{' '}
+              <button type="button" className="calibration-hint-apply" onClick={() => setEstimatedMinutes(String(hint.suggested))}>
+                {hint.suggested} min
+              </button>.
+            </p>
+          )}
         </div>
         <div className="split-col">
           <label className="label">Starts (days from milestone start)</label>

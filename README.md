@@ -25,6 +25,17 @@ except the optional AI/web-guide calls you explicitly trigger.
 - **Floating timer widget** — a frameless, always-on-top window that times one
   task at a time (single-active, app-wide), survives crashes/sleep without
   inflating your logged time, and persists continuously.
+- **Insights dashboard** — a 📊 stats screen that finally surfaces what the app
+  records: completions, time tracked, per-quadrant **estimate accuracy**, a
+  streak heatmap, and a readable ledger — plus controls to **repay Time Debt** /
+  **spend the Bank**.
+- **Smart priority queue** — the queue is scored by Effort/Impact **leverage**
+  and due-date urgency (not just date), flags **overdue** tasks, labels each
+  quadrant (Quick Win / Big Bet / Filler / Trap), and offers a Priority↔Date
+  sort toggle.
+- **Reminders & data safety** — optional OS notifications for tasks due today or
+  overdue (with a **system tray** so they fire even when the window is closed),
+  and one-click **backup / restore** of your database + profile.
 - **AI milestone planning** *(optional)* — turn a "big vague goal" into a
   structured Milestone/Task breakdown via a local **Ollama** model.
 - **Almighty Guide** *(optional)* — a live-web, step-by-step how-to for any task,

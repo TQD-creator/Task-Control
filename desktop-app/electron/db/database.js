@@ -244,16 +244,108 @@ function getTaskById(id) {
   return get(`SELECT * FROM tasks WHERE id = ?`, [id]);
 }
 
-// Active queue for the Dashboard: pending/in_progress tasks across all goals,
-// soonest scheduled_date first.
+// Effort/Impact quadrant label (matches EffortImpactMatrix in the renderer).
+function quadrantLabel(effort, impact) {
+  if (impact === 'high' && effort === 'low') return 'Quick Win';
+  if (impact === 'high' && effort === 'high') return 'Big Bet';
+  if (impact === 'low' && effort === 'low') return 'Filler';
+  return 'Trap'; // low impact / high effort
+}
+
+// Priority score for the smart queue. Higher = do sooner. Impact dominates
+// (weight ×2), effort is a mild penalty (cheap wins float up), and due-date
+// urgency stacks on top so an overdue task always outranks a not-yet-due one
+// of the same quadrant. The raw scheduled_date/order_index remain the stable
+// tiebreaker back in getActiveTaskQueue's sort.
+function computePriority(task, todayStr) {
+  const impactWeight = task.impact === 'high' ? 2 : 1;
+  const effortWeight = task.effort === 'high' ? 2 : 1;
+  let urgency = 0;
+  const date = task.scheduled_date || task.due_date || null;
+  if (date) {
+    if (date < todayStr) urgency = 3; // overdue
+    else {
+      const days = Math.round((new Date(`${date}T00:00:00Z`) - new Date(`${todayStr}T00:00:00Z`)) / 86400000);
+      if (days <= 2) urgency = 2;
+      else if (days <= 7) urgency = 1;
+    }
+  }
+  return impactWeight * 2 - effortWeight + urgency;
+}
+
+// Active queue for the Dashboard: pending/in_progress tasks across all goals.
+// Each row is decorated with a priority score, an `overdue` flag, and a
+// quadrant label; sorted by priority (desc) with the original chronological
+// order as the stable tiebreaker. The renderer can re-sort by date if it wants.
 function getActiveTaskQueue() {
-  return all(
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const rows = all(
     `SELECT tasks.*, milestones.title AS milestone_title, goals.title AS goal_title
      FROM tasks
      JOIN milestones ON milestones.id = tasks.milestone_id
      JOIN goals ON goals.id = milestones.goal_id
      WHERE tasks.status IN ('pending', 'in_progress')
      ORDER BY tasks.scheduled_date ASC, tasks.order_index ASC`
+  );
+  return rows
+    .map((t) => {
+      const date = t.scheduled_date || t.due_date || null;
+      return {
+        ...t,
+        priority: computePriority(t, todayStr),
+        overdue: !!date && date < todayStr,
+        quadrant: quadrantLabel(t.effort, t.impact),
+      };
+    })
+    .sort((a, b) => b.priority - a.priority); // Array.sort is stable → keeps date order within a tier
+}
+
+// Aggregate completion stats for the Insights screen. Reads back what the app
+// has been silently recording: how many tasks are done vs. still open, total
+// tracked/estimated time, and a per-day completion count for the last ~8 weeks
+// (feeds the streak heatmap). Dates are grouped on completed_at's local date.
+function getCompletionStats(weeks = 8) {
+  const totals = get(
+    `SELECT
+       SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completed,
+       SUM(CASE WHEN status IN ('pending', 'in_progress') THEN 1 ELSE 0 END) AS open,
+       COALESCE(SUM(total_seconds), 0) AS total_seconds,
+       COALESCE(SUM(CASE WHEN status = 'completed' THEN actual_minutes ELSE 0 END), 0) AS actual_minutes
+     FROM tasks`
+  ) || {};
+  const sinceDays = weeks * 7;
+  const since = new Date();
+  since.setUTCDate(since.getUTCDate() - sinceDays);
+  const sinceStr = since.toISOString().slice(0, 10);
+  const byDay = all(
+    `SELECT date(completed_at) AS day, COUNT(*) AS count
+     FROM tasks
+     WHERE status = 'completed' AND completed_at IS NOT NULL AND date(completed_at) >= ?
+     GROUP BY date(completed_at)
+     ORDER BY day ASC`,
+    [sinceStr]
+  );
+  return {
+    completed: totals.completed || 0,
+    open: totals.open || 0,
+    total_seconds: totals.total_seconds || 0,
+    actual_minutes: totals.actual_minutes || 0,
+    by_day: byDay,
+    weeks,
+  };
+}
+
+// Tasks the reminder service should nudge about: still open and due today or
+// earlier (by scheduled_date, falling back to due_date). Cheapest possible
+// shape — just what a notification needs.
+function getDueTasks(todayStr) {
+  return all(
+    `SELECT id, title, scheduled_date, due_date
+     FROM tasks
+     WHERE status IN ('pending', 'in_progress')
+       AND COALESCE(scheduled_date, due_date) IS NOT NULL
+       AND COALESCE(scheduled_date, due_date) <= ?`,
+    [todayStr]
   );
 }
 
@@ -366,6 +458,8 @@ module.exports = {
   getTasksByMilestone,
   getTaskById,
   getActiveTaskQueue,
+  getCompletionStats,
+  getDueTasks,
   updateTask,
   deleteTask,
   completeTask,

@@ -32,6 +32,8 @@ function defaultProfile() {
       work_hours: { start: '09:00', end: '18:00' },
       peak_energy_windows: [],
       risk_tolerance: 'medium',
+      // Fire OS reminders for tasks due today / overdue (see reminderService).
+      notifications_enabled: true,
     },
     time_economy: {
       time_debt_minutes: 0,
@@ -65,6 +67,11 @@ function defaultProfile() {
 function normalizeProfile(profile) {
   if (!profile.focus_lock || typeof profile.focus_lock !== 'object') {
     profile.focus_lock = { active: false, task_id: null, reason: null, locked_on: null };
+  }
+  // Backfill the reminders flag for profiles written before Theme 4 landed;
+  // default on so existing users start getting due/overdue nudges.
+  if (profile.personalization && profile.personalization.notifications_enabled === undefined) {
+    profile.personalization.notifications_enabled = true;
   }
   const lock = profile.focus_lock;
   if (lock.active && lock.reason === 'penalty' && lock.locked_on && lock.locked_on < today()) {
@@ -228,6 +235,11 @@ function setTone(profile, tone) {
   return profile;
 }
 
+function setNotificationsEnabled(profile, enabled) {
+  profile.personalization.notifications_enabled = !!enabled;
+  return profile;
+}
+
 // reason: 'manual' (Go Unga Bunga toggle) | 'penalty' (dopamine overrun).
 // taskId null means "locked but no task chosen yet" -> the UI shows the picker.
 function setFocusLock(profile, taskId = null, reason = 'manual') {
@@ -299,6 +311,7 @@ module.exports = {
   spendGuiltFreeBank,
   addBigVagueGoal,
   setTone,
+  setNotificationsEnabled,
   setFocusLock,
   clearFocusLock,
   logBoredom,

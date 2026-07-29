@@ -158,6 +158,41 @@ An opt-in anti-avoidance profile that inverts the app's soft defaults. Gated on
   `locked_on < today()` on every load, so no background timer is needed.
   `normalizeProfile` also backfills `focus_lock` into older profiles.
 
+## Insights, Smart Queue, Economy Loop, Reminders (upgrade)
+
+Four features that surface data the app already recorded but never showed, and
+close loops that were left open. All zero-new-dependency (SVG/CSS charts,
+Electron built-ins).
+
+- **Insights screen** (`src/screens/InsightsScreen.jsx`, reached via the **📊
+  Insights** button in the dashboard header; routed in `App.jsx` as
+  `screen.name === 'insights'`). Reads `profile.load()` (ledger / calibration /
+  streaks / time-economy — already fully returned) plus a new DB aggregate
+  `stats:overview` (`db.getCompletionStats()`): completed/open counts, tracked
+  seconds, and per-day completions for the streak heatmap. Charts are hand-rolled
+  in `src/components/charts/Charts.jsx` (`BarRow`, `Heatmap`) — **no chart lib**.
+- **Smart priority queue** — `db.getActiveTaskQueue()` now decorates each row with
+  a JS-computed `priority` (impact×2 − effort + due-date urgency), an `overdue`
+  flag, and a `quadrant` label, sorted by priority (stable sort keeps the old
+  chronological order as tiebreaker). The dashboard `AllTasksView` renders the
+  ⚠ Overdue / quadrant chips and a Priority↔Date sort toggle.
+- **Closed economy loop** — the previously dead `profileEngine.repayTimeDebt` /
+  `spendGuiltFreeBank` are now wired via `profile:repayTimeDebt` / `profile:spendBank`
+  (→ `window.api.profile.repayDebt/spendBank`) and driven from the Insights
+  economy cards (the Bank spend control is hidden in Unga Bunga tone). Manual task
+  creation shows a calibration-based estimate hint via `src/lib/calibration.js`
+  `suggestEstimate()`.
+- **Reminders & data safety** — `electron/services/reminderService.js` fires an OS
+  `Notification` for tasks due today/overdue (`db.getDueTasks`), once per task per
+  day, gated on `personalization.notifications_enabled` (default true, backfilled
+  in `normalizeProfile`; toggled via `profile:setNotifications`). A `Tray` in
+  `main.js` keeps the app alive after the window closes so reminders keep firing —
+  **`window-all-closed` no longer quits on Windows**; quit from the tray menu
+  (sets `app.isQuitting`). Backup/restore via `data:export` / `data:import`
+  (built-in `dialog` + `fs` copy of `task_control.db` + `user_profile.json`;
+  import backs up the current pair then `app.relaunch()`s). Tray icon:
+  `desktop-app/build/tray.png`.
+
 ## Conventions
 
 - Renderer never accesses Node/DB directly — always go through `window.api.*`

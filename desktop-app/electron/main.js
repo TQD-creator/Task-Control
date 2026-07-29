@@ -1,11 +1,13 @@
+const fs = require('fs');
 const path = require('path');
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, Tray, Menu, dialog, nativeImage } = require('electron');
 
 const db = require('./db/database');
 const profileEngine = require('./profile/profileEngine');
 const aiService = require('./services/AI_Service');
 const guideService = require('./services/guideService');
 const timerService = require('./services/timerService');
+const reminderService = require('./services/reminderService');
 const settings = require('./settings');
 const { getUserDataDir } = require('./paths');
 
@@ -15,13 +17,21 @@ const isDev = process.env.NODE_ENV === 'development';
 // the single-active-timer model). Held at module scope so repeated "open
 // timer" clicks focus the existing window instead of spawning duplicates.
 let widgetWindow = null;
+// The main app window + tray, held at module scope so reminders and the tray
+// menu can raise/focus the window even after it's been closed to the tray.
+let mainWindow = null;
+let tray = null;
 
 function getProfilePath() {
   return path.join(getUserDataDir(), 'user_profile.json');
 }
 
+function getDbPath() {
+  return path.join(getUserDataDir(), 'task_control.db');
+}
+
 function createWindow() {
-  const win = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 1100,
     height: 760,
     webPreferences: {
@@ -32,11 +42,45 @@ function createWindow() {
   });
 
   if (isDev) {
-    win.loadURL('http://localhost:5173');
-    win.webContents.openDevTools({ mode: 'detach' });
+    mainWindow.loadURL('http://localhost:5173');
+    mainWindow.webContents.openDevTools({ mode: 'detach' });
   } else {
-    win.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
+    mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
   }
+
+  mainWindow.on('closed', () => { mainWindow = null; });
+}
+
+// Bring the main window to the front (from a tray click or a reminder), or
+// recreate it if it was closed.
+function showMainWindow() {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  } else {
+    createWindow();
+  }
+}
+
+// System tray so the app can keep running (and deliver reminders) after the
+// window is closed. Icon is a small PNG shipped under build/; if it's somehow
+// missing we fall back to an empty image rather than crashing.
+function createTray() {
+  if (tray) return;
+  const iconPath = path.join(__dirname, '..', 'build', 'tray.png');
+  let icon = nativeImage.createFromPath(iconPath);
+  if (icon.isEmpty()) icon = nativeImage.createEmpty();
+  tray = new Tray(icon);
+  tray.setToolTip('Task Control');
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      { label: 'Open Task Control', click: showMainWindow },
+      { type: 'separator' },
+      { label: 'Quit', click: () => { app.isQuitting = true; app.quit(); } },
+    ])
+  );
+  tray.on('click', showMainWindow);
 }
 
 // The floating, always-on-top Milestone & Task Timer. Frameless + resizable so
@@ -125,14 +169,27 @@ app.whenReady().then(async () => {
 
   registerIpcHandlers();
   createWindow();
+  createTray();
+
+  // Due / overdue task reminders. Gated on the profile flag, re-read each pass
+  // so toggling it in-app takes effect without a restart. A click focuses the app.
+  reminderService.start({
+    db,
+    isEnabled: () => profileEngine.loadProfile(getProfilePath()).personalization?.notifications_enabled !== false,
+    onActivate: showMainWindow,
+  });
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    else showMainWindow();
   });
 });
 
+// The tray keeps the app alive after the last window closes, so reminders keep
+// firing. Quit explicitly from the tray menu (which sets app.isQuitting).
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
+  if (process.platform === 'darwin') return;
+  if (app.isQuitting) app.quit();
 });
 
 // Force any debounced DB write to disk synchronously before the process exits,
@@ -160,6 +217,9 @@ function registerIpcHandlers() {
   ipcMain.handle('tasks:create', (_e, payload) => db.createTask(payload));
   ipcMain.handle('tasks:listByMilestone', (_e, milestoneId) => db.getTasksByMilestone(milestoneId));
   ipcMain.handle('tasks:activeQueue', () => db.getActiveTaskQueue());
+
+  // Aggregate completion stats for the Insights screen.
+  ipcMain.handle('stats:overview', () => db.getCompletionStats());
   ipcMain.handle('tasks:update', (_e, id, fields) => db.updateTask(id, fields));
   ipcMain.handle('tasks:delete', (_e, id) => db.deleteTask(id));
 
@@ -224,6 +284,92 @@ function registerIpcHandlers() {
     profileEngine.servePunishment(profile, punishment);
     profileEngine.saveProfile(profilePath, profile);
     return profile;
+  });
+
+  // Toggle due/overdue reminders. reminderService re-reads this each pass.
+  ipcMain.handle('profile:setNotifications', (_e, enabled) => {
+    const profilePath = getProfilePath();
+    const profile = profileEngine.loadProfile(profilePath);
+    profileEngine.setNotificationsEnabled(profile, enabled);
+    profileEngine.saveProfile(profilePath, profile);
+    return profile;
+  });
+
+  // Close the time-economy loop: draw the Time Debt / Guilt-Free Bank back down.
+  // Both engine helpers clamp to the available balance, so an over-large amount
+  // is safe. Each logs its own ledger entry.
+  ipcMain.handle('profile:repayTimeDebt', (_e, minutes, note) => {
+    const profilePath = getProfilePath();
+    const profile = profileEngine.loadProfile(profilePath);
+    profileEngine.repayTimeDebt(profile, minutes, note ?? null);
+    profileEngine.saveProfile(profilePath, profile);
+    return profile;
+  });
+  ipcMain.handle('profile:spendBank', (_e, minutes, note) => {
+    const profilePath = getProfilePath();
+    const profile = profileEngine.loadProfile(profilePath);
+    profileEngine.spendGuiltFreeBank(profile, minutes, note ?? null);
+    profileEngine.saveProfile(profilePath, profile);
+    return profile;
+  });
+
+  // Data safety — export/import the DB + profile. Built-in dialog + fs only.
+  ipcMain.handle('data:export', async () => {
+    db.persist({ immediate: true }); // flush any debounced writes to disk first
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+    const res = await dialog.showSaveDialog(mainWindow, {
+      title: 'Export Task Control backup',
+      defaultPath: `task-control-backup-${stamp}`,
+      properties: ['createDirectory'],
+    });
+    if (res.canceled || !res.filePath) return { ok: false, canceled: true };
+    const dir = res.filePath;
+    fs.mkdirSync(dir, { recursive: true });
+    const dbPath = getDbPath();
+    const profilePath = getProfilePath();
+    if (fs.existsSync(dbPath)) fs.copyFileSync(dbPath, path.join(dir, 'task_control.db'));
+    if (fs.existsSync(profilePath)) fs.copyFileSync(profilePath, path.join(dir, 'user_profile.json'));
+    return { ok: true, dir };
+  });
+
+  ipcMain.handle('data:import', async () => {
+    const res = await dialog.showOpenDialog(mainWindow, {
+      title: 'Restore from a Task Control backup folder',
+      properties: ['openDirectory'],
+    });
+    if (res.canceled || !res.filePaths?.[0]) return { ok: false, canceled: true };
+    const dir = res.filePaths[0];
+    const srcDb = path.join(dir, 'task_control.db');
+    const srcProfile = path.join(dir, 'user_profile.json');
+    if (!fs.existsSync(srcDb) || !fs.existsSync(srcProfile)) {
+      return { ok: false, error: 'That folder is missing task_control.db or user_profile.json.' };
+    }
+    const confirm = await dialog.showMessageBox(mainWindow, {
+      type: 'warning',
+      buttons: ['Cancel', 'Replace & Restart'],
+      defaultId: 0,
+      cancelId: 0,
+      title: 'Restore backup',
+      message: 'This replaces your current tasks and profile with the backup, then restarts the app.',
+      detail: 'Your current data will be backed up alongside the files first.',
+    });
+    if (confirm.response !== 1) return { ok: false, canceled: true };
+
+    db.persist({ immediate: true });
+    const dbPath = getDbPath();
+    const profilePath = getProfilePath();
+    const bak = `.bak-${Date.now()}`;
+    if (fs.existsSync(dbPath)) fs.copyFileSync(dbPath, dbPath + bak);
+    if (fs.existsSync(profilePath)) fs.copyFileSync(profilePath, profilePath + bak);
+    fs.copyFileSync(srcDb, dbPath);
+    fs.copyFileSync(srcProfile, profilePath);
+
+    // The DB is loaded into memory once at boot, so a restart is the clean way
+    // to pick up the restored files.
+    app.isQuitting = true;
+    app.relaunch();
+    app.exit(0);
+    return { ok: true };
   });
 
   // AI

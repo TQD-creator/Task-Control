@@ -26,6 +26,7 @@ function Badge({ effort, impact }) {
 function AllTasksView({ onOpenGuide, tone, onProfileChanged }) {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [sortBy, setSortBy] = useState('priority'); // 'priority' | 'date'
 
   const refresh = useCallback(async () => {
     const queue = await window.api.tasks.activeQueue();
@@ -43,18 +44,35 @@ function AllTasksView({ onOpenGuide, tone, onProfileChanged }) {
     await onProfileChanged?.();
   });
 
+  // The queue arrives priority-sorted from the DB; offer a chronological view too.
+  const displayed = sortBy === 'date'
+    ? [...tasks].sort((a, b) => (a.scheduled_date || '9999').localeCompare(b.scheduled_date || '9999') || a.order_index - b.order_index)
+    : tasks;
+
   return (
     <>
       {!loading && tasks.length === 0 && <p className="empty-state">No active tasks. Select a goal above to add milestones, or + Goal to start a new one.</p>}
 
+      {!loading && tasks.length > 0 && (
+        <div className="queue-sort">
+          <span className="queue-sort-label">Sort:</span>
+          <button type="button" className={`queue-sort-btn${sortBy === 'priority' ? ' is-active' : ''}`} onClick={() => setSortBy('priority')}>Priority</button>
+          <button type="button" className={`queue-sort-btn${sortBy === 'date' ? ' is-active' : ''}`} onClick={() => setSortBy('date')}>Date</button>
+        </div>
+      )}
+
       <div className="task-list">
-        {tasks.map((item) => (
+        {displayed.map((item) => (
           <div className="task-card" key={item.id}>
             <div className="task-card-header">
               <span className="task-card-context">
                 {item.goal_title} / {item.milestone_title}
               </span>
-              <Badge effort={item.effort} impact={item.impact} />
+              <div className="task-card-tags">
+                {item.overdue && <span className="overdue-chip" title="Past its scheduled date">⚠ Overdue</span>}
+                {item.quadrant && <span className="quadrant-chip">{item.quadrant}</span>}
+                <Badge effort={item.effort} impact={item.impact} />
+              </div>
             </div>
             <div className="task-card-title">{item.title}</div>
             <div className="task-card-footer">
@@ -98,7 +116,7 @@ function AllTasksView({ onOpenGuide, tone, onProfileChanged }) {
   );
 }
 
-export default function DashboardScreen({ selectedGoalId, onSelectGoal, onAddGoal, onAddMilestone, onAddTask, onCapture, onOpenGuide, tone, streaks, onProfileChanged }) {
+export default function DashboardScreen({ selectedGoalId, onSelectGoal, onAddGoal, onAddMilestone, onAddTask, onCapture, onOpenGuide, onOpenInsights, tone, streaks, onProfileChanged }) {
   const [goals, setGoals] = useState([]);
   const unga = isUngaBunga(tone);
 
@@ -138,6 +156,9 @@ export default function DashboardScreen({ selectedGoalId, onSelectGoal, onAddGoa
               🔥 {streaks.current_streak_days}-day streak
             </span>
           )}
+          <button type="button" className="button button-cancel" onClick={onOpenInsights} title="See your stats, time economy, and history">
+            📊 Insights
+          </button>
           <button
             type="button"
             className={`button button-cancel tone-toggle${unga ? ' tone-toggle-on' : ''}`}

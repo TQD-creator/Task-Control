@@ -7,6 +7,11 @@ dist/
 build/
 desktop-app/dist/
 web-build/
+# ...except the tray icon under desktop-app/build/ — that's a committed asset the
+# app loads at runtime (electron/main.js createTray), not generated build output.
+!desktop-app/build/
+desktop-app/build/*
+!desktop-app/build/tray.png
 
 # ─── Caches ──────────────────────────────────────────────────────────────────
 .vite/

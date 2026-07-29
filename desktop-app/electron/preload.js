@@ -26,6 +26,13 @@ contextBridge.exposeInMainWorld('api', {
     complete: (taskId, actualMinutes, justification) =>
       ipcRenderer.invoke('tasks:complete', { taskId, actualMinutes, justification }),
   },
+  stats: {
+    overview: () => ipcRenderer.invoke('stats:overview'),
+  },
+  data: {
+    export: () => ipcRenderer.invoke('data:export'),
+    import: () => ipcRenderer.invoke('data:import'),
+  },
   timeline: {
     shiftTask: (taskId, deltaDays) => ipcRenderer.invoke('timeline:shiftTask', taskId, deltaDays),
     shiftMilestone: (milestoneId, deltaDays) => ipcRenderer.invoke('timeline:shiftMilestone', milestoneId, deltaDays),
@@ -34,9 +41,12 @@ contextBridge.exposeInMainWorld('api', {
     load: () => ipcRenderer.invoke('profile:load'),
     addBigVagueGoal: (goalId, text) => ipcRenderer.invoke('profile:addBigVagueGoal', goalId, text),
     setTone: (tone) => ipcRenderer.invoke('profile:setTone', tone),
+    setNotifications: (enabled) => ipcRenderer.invoke('profile:setNotifications', enabled),
     setFocusLock: (taskId, reason) => ipcRenderer.invoke('profile:setFocusLock', taskId, reason),
     clearFocusLock: () => ipcRenderer.invoke('profile:clearFocusLock'),
     servePunishment: (punishment) => ipcRenderer.invoke('profile:servePunishment', punishment),
+    repayDebt: (minutes, note) => ipcRenderer.invoke('profile:repayTimeDebt', minutes, note),
+    spendBank: (minutes, note) => ipcRenderer.invoke('profile:spendBank', minutes, note),
     // Subscribe to tone changes (Unga Bunga toggled); returns an unsubscribe fn.
     onToneChange: (callback) => {
       const handler = (_e, tone) => callback(tone);

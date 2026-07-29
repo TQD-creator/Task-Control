@@ -216,3 +216,85 @@ textarea.input { min-height: 70px; resize: vertical; }
   cursor: pointer; margin-top: 8px;
 }
 .focus-lock:not(.focus-lock-unga) .focus-lock-choice { background: #fff; color: #111; border-color: #ccc; }
+
+/* ---- Smart priority queue ---- */
+.task-card-tags { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.overdue-chip {
+  font-size: 10px; font-weight: 700; color: #b91c1c;
+  background: #fee2e2; border: 1px solid #fca5a5; border-radius: 6px; padding: 3px 7px; white-space: nowrap;
+}
+.quadrant-chip {
+  font-size: 10px; font-weight: 700; color: #334155;
+  background: #eef2f7; border: 1px solid #cbd5e1; border-radius: 6px; padding: 3px 7px; white-space: nowrap;
+}
+.queue-sort { display: flex; align-items: center; gap: 6px; margin: 4px 0 12px; }
+.queue-sort-label { font-size: 12px; color: #888; }
+.queue-sort-btn {
+  font-size: 12px; padding: 4px 10px; border-radius: 999px; cursor: pointer;
+  border: 1px solid #d1d5db; background: #fff; color: #374151;
+}
+.queue-sort-btn.is-active { background: #2563eb; color: #fff; border-color: #2563eb; }
+
+/* ---- Calibration hint (New Task) ---- */
+.calibration-hint { font-size: 12px; color: #555; margin: 8px 0 0; line-height: 1.4; }
+.calibration-hint-apply {
+  border: none; background: none; color: #2563eb; font: inherit; font-weight: 700;
+  cursor: pointer; text-decoration: underline; padding: 0;
+}
+
+/* ---- Insights screen ---- */
+.insights-header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+.insights-section-title { font-size: 15px; font-weight: 700; color: #111; margin: 28px 0 12px; }
+.insights-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+.insights-grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.stat-card { background: #f7f7f8; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; text-align: center; }
+.stat-num { font-size: 26px; font-weight: 800; color: #111; }
+.stat-cap { font-size: 12px; color: #6b7280; margin-top: 4px; }
+
+.econ-card { border-radius: 12px; padding: 16px; border: 1px solid #e5e7eb; }
+.econ-debt { background: #fef2f2; border-color: #fecaca; }
+.econ-bank { background: #ecfdf5; border-color: #a7f3d0; }
+.econ-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280; }
+.econ-num { font-size: 24px; font-weight: 800; color: #111; margin: 6px 0 12px; }
+.econ-action { display: flex; gap: 8px; align-items: center; }
+.econ-input { width: 80px; margin: 0; }
+.econ-note { font-size: 12px; color: #6b7280; font-style: italic; }
+
+.accuracy-list { display: flex; flex-direction: column; gap: 14px; }
+.bar-row-head { display: flex; justify-content: space-between; font-size: 12px; color: #374151; margin-bottom: 4px; }
+.bar-row-label { font-weight: 600; }
+.bar-row-value { color: #6b7280; }
+.bar-track { position: relative; height: 12px; background: #eef2f7; border-radius: 6px; overflow: hidden; }
+.bar-fill { position: absolute; top: 0; left: 0; height: 100%; border-radius: 6px; }
+.bar-fill-under { background: #16a34a; }
+.bar-fill-over { background: #f59e0b; }
+.bar-baseline { position: absolute; top: -2px; bottom: -2px; width: 2px; background: #334155; opacity: 0.6; }
+.accuracy-legend { font-size: 11px; color: #9ca3af; margin: 4px 0 0; }
+
+.heatmap { display: flex; gap: 3px; overflow-x: auto; padding-bottom: 4px; }
+.heatmap-col { display: flex; flex-direction: column; gap: 3px; }
+.heatmap-cell { width: 12px; height: 12px; border-radius: 2px; background: #ebedf0; }
+.heatmap-cell.hm-empty { background: transparent; }
+.heatmap-cell.hm-0 { background: #ebedf0; }
+.heatmap-cell.hm-2 { background: #9be9a8; }
+.heatmap-cell.hm-3 { background: #40c463; }
+.heatmap-cell.hm-4 { background: #216e39; }
+
+.ledger-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.ledger-item {
+  display: flex; align-items: center; gap: 10px; font-size: 13px;
+  padding: 8px 10px; background: #f7f7f8; border: 1px solid #e5e7eb; border-radius: 8px;
+}
+.ledger-tag { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap; color: #fff; }
+.ledger-debt { background: #dc2626; }
+.ledger-debt_repayment { background: #16a34a; }
+.ledger-bank { background: #059669; }
+.ledger-bank_locked { background: #6b7280; }
+.ledger-boredom_tank { background: #7c3aed; }
+.ledger-punishment { background: #b45309; }
+.ledger-detail { flex: 1; color: #374151; }
+.ledger-date { color: #9ca3af; font-size: 12px; white-space: nowrap; }
+
+.insights-settings { display: flex; flex-direction: column; gap: 12px; }
+.settings-row { display: flex; align-items: center; gap: 10px; font-size: 14px; color: #374151; }
+.settings-notice { font-size: 13px; color: #2563eb; margin: 0; }

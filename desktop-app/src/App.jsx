@@ -16,6 +16,7 @@ import CaptureScreen from './screens/CaptureScreen.jsx';
 import CaptureReviewScreen from './screens/CaptureReviewScreen.jsx';
 import GuideScreen from './screens/GuideScreen.jsx';
 import FocusLockScreen from './screens/FocusLockScreen.jsx';
+import InsightsScreen from './screens/InsightsScreen.jsx';
 
 export default function App() {
   const [screen, setScreen] = useState({ name: 'dashboard' });
@@ -59,10 +60,15 @@ export default function App() {
           onAddTask={(milestoneId) => setScreen({ name: 'newTask', milestoneId })}
           onCapture={() => setScreen({ name: 'capture' })}
           onOpenGuide={(task) => setScreen({ name: 'guide', taskId: task.id, taskTitle: task.title })}
+          onOpenInsights={() => setScreen({ name: 'insights' })}
           tone={tone}
           streaks={profile?.streaks}
           onProfileChanged={reloadProfile}
         />
+      )}
+
+      {screen.name === 'insights' && (
+        <InsightsScreen tone={tone} onBack={() => { reloadProfile(); setScreen({ name: 'dashboard' }); }} />
       )}
 
       {screen.name === 'newGoal' && (

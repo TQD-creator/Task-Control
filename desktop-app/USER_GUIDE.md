@@ -78,7 +78,9 @@ Click **Complete** on any task card in Today's Queue:
    minutes to your **Time Debt** and logs your note.
 
 Both cases also update your daily streak and the Effort/Impact estimation
-calibration used to bias future AI-suggested estimates.
+calibration — which biases future AI-suggested estimates, powers the estimate
+hint on the New Task screen, and shows up as your accuracy chart in **📊 Insights**
+(see §8).
 
 ## 6. Timing your work — the floating Timer widget
 
@@ -177,7 +179,56 @@ What changes while it's on:
 > toggle or the JSON) and every default behavior returns. The **penalty lock** is
 > the one thing you can't click away; it waits for tomorrow.
 
-## 8. Where your data lives, and how to change it
+## 8. Insights, smart queue, reminders & backup
+
+The app quietly records a lot — completions, time, estimate accuracy, a ledger —
+and this is where you actually *see* it and act on it.
+
+**📊 Insights (dashboard header).** Click **📊 Insights** to open the stats screen:
+
+- **Top line** — tasks completed, tasks still open, total time tracked, and your
+  current/best streak.
+- **Time economy** — your **Time Debt** and **Guilt-Free Bank** totals, each with
+  a control to draw it back down: **Repay** debt or **Spend** bank minutes (both
+  clamp to what you actually have). In **Unga Bunga** tone the Bank stays locked,
+  so its spend control is hidden — the streak is the reward (see §7).
+- **Estimate accuracy** — for each Effort/Impact quadrant, how your actual times
+  compare to your estimates (e.g. "High effort / High impact runs 1.4× your
+  estimate"). `1.00×` is dead-on; over 1 means you underestimate that quadrant.
+- **Consistency** — a GitHub-style heatmap of your completions over recent weeks.
+- **Recent activity** — a readable feed of the `time_economy.ledger` (debt, bank,
+  boredom-tanks, punishments).
+
+**Calibration hint when creating tasks.** On **New Task**, once you pick an
+Effort/Impact quadrant the estimate field shows a hint based on your own history
+("tasks like this run ~1.4× — consider 42 min") with a one-click apply. It's only
+a suggestion; it never overwrites your number on its own.
+
+**Smart priority queue.** "Today's Queue" is no longer sorted by date alone — it's
+scored by **leverage** (Impact weighed against Effort) plus **due-date urgency**,
+so quick, high-impact, and overdue work floats to the top. Each card shows a
+quadrant label (**Quick Win / Big Bet / Filler / Trap**) and an **⚠ Overdue** chip
+when it's past its date. Use the **Priority ↔ Date** toggle above the list to
+switch back to plain chronological order any time.
+
+**Reminders & the system tray.** Turn on **"Notify me about tasks due today or
+overdue"** in Insights (on by default) and the app raises an OS notification for
+due/overdue tasks — at most once per task per day; clicking it brings the app
+forward. So these can fire even after you close the window, the app now lives in a
+**system tray**:
+
+> **Behavior change:** closing the main window no longer quits the app — it keeps
+> running in the tray so reminders still fire. **Right-click the tray icon → Quit**
+> to fully exit. (Turn reminders off in Insights if you'd rather not be nudged.)
+
+**Backup & restore.** In Insights, under **Reminders & data**:
+
+- **Export backup…** — pick a folder; the app copies your `task_control.db` and
+  `user_profile.json` into a timestamped backup there.
+- **Restore backup…** — pick a previously-exported folder; after a confirmation it
+  backs up your current files, swaps in the backup, and **restarts** the app.
+
+## 9. Where your data lives, and how to change it
 
 Two files, both under:
 
@@ -199,11 +250,14 @@ risk tolerance): close the app, open `user_profile.json`, edit the
   "tone_preference": "encouraging",
   "work_hours": { "start": "08:00", "end": "17:00" },
   "peak_energy_windows": ["morning"],
-  "risk_tolerance": "medium"
+  "risk_tolerance": "medium",
+  "notifications_enabled": true
 }
 ```
 
 `tone_preference` accepts `"encouraging"` (default) or `"unga_bunga"` (see §7).
+`notifications_enabled` toggles the due/overdue reminders (see §8) — you can flip
+it here or from the Insights screen.
 
 Don't hand-edit `time_economy`, `estimation_calibration`, `streaks`, or
 `focus_lock` — those are a running history/state computed from real task
@@ -215,7 +269,7 @@ happened.
 `task-control-desktop` folder above. It gets recreated with defaults the
 next time you launch.
 
-## 9. Example goal, for testing the whole system
+## 10. Example goal, for testing the whole system
 
 A seed script populates one realistic Goal so you can test the full loop
 without hand-building data first:
@@ -251,7 +305,7 @@ of duplicating.
    you should see both entries from steps 2 and 3, plus the updated running
    totals.
 
-## 10. AI planning (Ollama) — wired on the backend, not yet in the UI
+## 11. AI planning (Ollama) — wired on the backend, not yet in the UI
 
 `electron/services/AI_Service.js` and the `ai:generateMilestonePlan` IPC
 channel can turn a "Big Vague Goal" into a full Milestone/Task breakdown,
@@ -268,7 +322,7 @@ ollama pull llama3
 Wiring this to a "Generate with AI" button on the New Goal screen is a
 reasonable next step if you want it.
 
-## 11. Troubleshooting
+## 12. Troubleshooting
 
 - **`Electron failed to install correctly`** — the Electron binary download
   during `npm install` can land corrupted on restrictive networks. Delete
