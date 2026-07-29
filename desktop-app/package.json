@@ -1,0 +1,27 @@
+{
+  "name": "task-control-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "main": "electron/main.js",
+  "scripts": {
+    "dev:renderer": "vite",
+    "dev:electron": "wait-on tcp:5173 && cross-env NODE_ENV=development node electron/launch.js",
+    "dev": "concurrently -k \"npm:dev:renderer\" \"npm:dev:electron\"",
+    "build": "vite build",
+    "start": "node electron/launch.js",
+    "seed": "node seed-example.js"
+  },
+  "dependencies": {
+    "sql.js": "^1.11.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3",
+    "electron": "^31.3.1",
+    "vite": "^5.4.1",
+    "wait-on": "^7.2.0"
+  }
+}

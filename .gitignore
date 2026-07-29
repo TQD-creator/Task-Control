@@ -1,0 +1,53 @@
+# ─── Dependencies ────────────────────────────────────────────────────────────
+node_modules/
+desktop-app/node_modules/
+
+# ─── Build output ────────────────────────────────────────────────────────────
+dist/
+build/
+desktop-app/dist/
+web-build/
+
+# ─── Caches ──────────────────────────────────────────────────────────────────
+.vite/
+.cache/
+.parcel-cache/
+
+# ─── Expo / React Native (legacy port at repo root) ──────────────────────────
+.expo/
+.expo-shared/
+
+# ─── App runtime state / user data ───────────────────────────────────────────
+# The desktop app stores these under the OS app-data dir (%APPDATA% / Library /
+# .config), so they normally never appear here — but never commit them if they do.
+# They hold personal task history, not app source.
+profile/user_profile.json
+settings.json
+*.db
+*.sqlite
+*.sqlite3
+
+# ─── Secrets / environment ───────────────────────────────────────────────────
+# The Tavily API key comes from the TAVILY_API_KEY env var or the in-app prompt
+# and is written only to the OS app-data settings.json — keep every secret out.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# ─── Logs & crash dumps ──────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+hs_err_pid*.log
+
+# ─── OS / editor cruft ───────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.swp
+*~

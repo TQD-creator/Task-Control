@@ -1,0 +1,123 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "user_profile.schema.json",
+  "title": "UserProfile",
+  "description": "Personalization Engine state. Read/written by the app on task completion and injected into the LLM system prompt (Step 4) alongside the user's Big Vague Goal.",
+  "type": "object",
+  "required": ["user_id", "version", "created_at", "updated_at", "personalization", "time_economy", "estimation_calibration", "streaks"],
+  "properties": {
+    "user_id": { "type": "string", "description": "Local UUID for this profile." },
+    "version": { "type": "integer", "description": "Schema version, bump on breaking structure changes." },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" },
+
+    "personalization": {
+      "type": "object",
+      "description": "Static-ish preferences that shape LLM tone and scheduling defaults.",
+      "required": ["tone_preference", "work_hours", "risk_tolerance"],
+      "properties": {
+        "tone_preference": {
+          "type": "string",
+          "enum": ["encouraging", "direct", "clinical", "playful"]
+        },
+        "work_hours": {
+          "type": "object",
+          "required": ["start", "end"],
+          "properties": {
+            "start": { "type": "string", "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$" },
+            "end":   { "type": "string", "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$" }
+          }
+        },
+        "peak_energy_windows": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["early_morning", "morning", "afternoon", "evening", "night"] }
+        },
+        "risk_tolerance": {
+          "type": "string",
+          "enum": ["low", "medium", "high"],
+          "description": "How aggressively the AI should schedule stretch milestones."
+        }
+      }
+    },
+
+    "time_economy": {
+      "type": "object",
+      "description": "The Time Debt / Guilt-Free Bank ledger driven by actual vs. estimated task duration (Step 3).",
+      "required": ["time_debt_minutes", "guilt_free_bank_minutes", "ledger"],
+      "properties": {
+        "time_debt_minutes": {
+          "type": "integer",
+          "description": "Running total of (actual - estimated) minutes across overrun tasks. Positive = owed time."
+        },
+        "guilt_free_bank_minutes": {
+          "type": "integer",
+          "description": "Running total of banked minutes from under-estimate completions, spendable as guilt-free rest."
+        },
+        "ledger": {
+          "type": "array",
+          "description": "Append-only history of deltas, most recent last.",
+          "items": {
+            "type": "object",
+            "required": ["date", "task_id", "type", "delta_minutes"],
+            "properties": {
+              "date": { "type": "string", "format": "date-time" },
+              "task_id": { "type": "integer", "description": "FK to tasks.id in schema.sql" },
+              "type": { "type": "string", "enum": ["debt", "bank", "debt_repayment"] },
+              "delta_minutes": { "type": "integer" },
+              "justification": { "type": "string", "description": "Free-text reason captured in the Time Debt justification modal (Step 6)." }
+            }
+          }
+        }
+      }
+    },
+
+    "estimation_calibration": {
+      "type": "object",
+      "description": "Per Effort/Impact bucket accuracy of the user's own time estimates, used to bias future AI-suggested estimates.",
+      "properties": {
+        "low_effort_low_impact":   { "$ref": "#/definitions/calibrationBucket" },
+        "low_effort_high_impact":  { "$ref": "#/definitions/calibrationBucket" },
+        "high_effort_low_impact":  { "$ref": "#/definitions/calibrationBucket" },
+        "high_effort_high_impact": { "$ref": "#/definitions/calibrationBucket" }
+      }
+    },
+
+    "streaks": {
+      "type": "object",
+      "required": ["current_streak_days", "longest_streak_days"],
+      "properties": {
+        "current_streak_days": { "type": "integer" },
+        "longest_streak_days": { "type": "integer" },
+        "last_completed_date": { "type": "string", "format": "date" }
+      }
+    },
+
+    "big_vague_goals": {
+      "type": "array",
+      "description": "Raw history of goal statements the user has typed, for LLM context continuity.",
+      "items": {
+        "type": "object",
+        "required": ["goal_id", "text", "created_at"],
+        "properties": {
+          "goal_id": { "type": "integer", "description": "FK to goals.id in schema.sql" },
+          "text": { "type": "string" },
+          "created_at": { "type": "string", "format": "date-time" }
+        }
+      }
+    }
+  },
+
+  "definitions": {
+    "calibrationBucket": {
+      "type": "object",
+      "required": ["sample_count", "avg_actual_to_estimate_ratio"],
+      "properties": {
+        "sample_count": { "type": "integer" },
+        "avg_actual_to_estimate_ratio": {
+          "type": "number",
+          "description": "Mean of (actual_minutes / estimated_minutes) across completed tasks in this bucket. 1.0 = perfectly calibrated."
+        }
+      }
+    }
+  }
+}

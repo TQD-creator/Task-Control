@@ -1,0 +1,218 @@
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  background: #f7f7f8;
+  color: #111;
+}
+
+.app { display: flex; flex-direction: column; height: 100vh; }
+
+.container { padding: 20px; max-width: 720px; margin: 0 auto; width: 100%; }
+
+.heading { font-size: 22px; font-weight: 700; margin: 0 0 16px; }
+
+.label { font-size: 13px; font-weight: 600; color: #333; margin-top: 12px; margin-bottom: 4px; display: block; }
+.section-label { font-size: 13px; color: #666; margin-top: 20px; margin-bottom: 8px; font-style: italic; }
+
+.input, textarea.input {
+  width: 100%;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 15px;
+  font-family: inherit;
+  background: #fff;
+}
+
+textarea.input { min-height: 70px; resize: vertical; }
+
+.split-row { display: flex; gap: 12px; }
+.split-col { flex: 1; }
+
+.actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 28px; }
+
+.button { padding: 10px 20px; border-radius: 8px; border: none; font-weight: 700; font-size: 14px; cursor: pointer; }
+.button:disabled { opacity: 0.5; cursor: not-allowed; }
+.button-cancel { background: #eee; color: #333; font-weight: 600; }
+.button-save { background: #2563eb; color: #fff; }
+.button-complete { background: #16a34a; color: #fff; }
+.button-danger { background: #b91c1c; color: #fff; }
+
+/* Effort/Impact matrix */
+.matrix-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.matrix-cell {
+  width: calc(50% - 4px);
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid #ccc;
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+}
+.matrix-cell.selected { background: #2563eb; border-color: #2563eb; color: #fff; }
+.matrix-cell-label { font-size: 15px; font-weight: 700; }
+.matrix-cell-sub { font-size: 11px; color: #666; margin-top: 2px; }
+.matrix-cell.selected .matrix-cell-sub { color: #dbeafe; }
+
+/* Dashboard */
+.dashboard-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 20px 8px; }
+.empty-state { text-align: center; color: #888; margin-top: 40px; }
+.task-list { padding: 16px; display: flex; flex-direction: column; gap: 12px; max-width: 720px; margin: 0 auto; width: 100%; }
+.task-card { background: #fff; border-radius: 12px; padding: 14px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+.task-card-header { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.task-card-context { font-size: 11px; color: #888; }
+.task-card-title { font-size: 16px; font-weight: 600; margin: 6px 0 10px; }
+.task-card-footer { display: flex; justify-content: space-between; align-items: center; }
+.task-card-meta { font-size: 12px; color: #888; }
+
+.badge { padding: 3px 8px; border-radius: 6px; color: #fff; font-size: 10px; font-weight: 700; white-space: nowrap; }
+
+/* Goal tabs (the "tag to select" filter) */
+.goal-tabs { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 0 16px; }
+.goal-chip {
+  border: 1px solid #ccc;
+  background: #fff;
+  color: #333;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.goal-chip.selected { background: #2563eb; border-color: #2563eb; color: #fff; }
+.goal-chip-add { border-style: dashed; color: #2563eb; border-color: #2563eb; }
+
+.goal-chip-tag { display: flex; align-items: center; gap: 6px; padding: 4px 12px 4px 8px; }
+.goal-chip-label { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.goal-chip-pin {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.3;
+  filter: grayscale(1);
+}
+.goal-chip-pin.pinned { opacity: 1; filter: none; }
+.goal-chip-tag.selected .goal-chip-pin { opacity: 0.6; }
+.goal-chip-tag.selected .goal-chip-pin.pinned { opacity: 1; }
+
+.goal-title-row { display: flex; align-items: center; gap: 10px; }
+.goal-title-edit-icon { background: none; border: none; cursor: pointer; font-size: 15px; opacity: 0.5; padding: 0; }
+.goal-title-edit-icon:hover { opacity: 1; }
+.goal-title-edit { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.goal-title-edit .input { flex: 1; }
+
+/* Per-goal milestone/task view */
+.milestone-block { background: #fff; border-radius: 12px; padding: 14px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+.milestone-block-header { display: flex; justify-content: space-between; align-items: flex-start; }
+.milestone-block-title { font-size: 16px; font-weight: 700; }
+.task-sublist { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+.task-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; background: #f7f7f8; border-radius: 8px; }
+.task-row-title { font-size: 14px; font-weight: 600; }
+.task-row-title.completed { text-decoration: line-through; color: #888; font-weight: 400; }
+.task-add-button { margin-top: 12px; padding: 6px 14px; font-size: 12px; }
+
+/* Almighty Guide */
+.guide-progress { display: flex; align-items: center; gap: 14px; background: #eef2ff; border: 1px solid #c7d2fe; border-radius: 12px; padding: 16px; margin: 12px 0; }
+.guide-spinner { width: 22px; height: 22px; border: 3px solid #c7d2fe; border-top-color: #2563eb; border-radius: 50%; animation: guide-spin 0.9s linear infinite; flex-shrink: 0; }
+@keyframes guide-spin { to { transform: rotate(360deg); } }
+.guide-phase-label { font-weight: 600; margin-bottom: 2px; }
+.guide-result h2 { font-size: 19px; }
+.guide-summary { color: #444; line-height: 1.5; margin-bottom: 16px; }
+.guide-steps { padding-left: 20px; display: flex; flex-direction: column; gap: 14px; }
+.guide-step-heading { font-weight: 700; margin-bottom: 3px; }
+.guide-step-detail { color: #333; line-height: 1.5; white-space: pre-wrap; }
+.guide-section-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #666; margin: 20px 0 8px; }
+.guide-caveats { background: #fff7ed; border: 1px solid #fed7aa; border-radius: 10px; padding: 12px 12px 12px 0; }
+.guide-caveats ul, .guide-sources ul { margin: 0; padding-left: 28px; line-height: 1.6; }
+.guide-sources a { color: #2563eb; }
+.task-guide-button { margin-left: 8px; }
+
+/* Modals */
+.modal-backdrop {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+  display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 10;
+}
+.modal-card { background: #fff; border-radius: 14px; padding: 20px; width: 100%; max-width: 420px; }
+.modal-heading { font-size: 18px; font-weight: 700; margin: 0 0 4px; }
+.modal-heading-danger { color: #b91c1c; }
+.modal-body { font-size: 14px; color: #444; margin-bottom: 16px; line-height: 1.4; }
+.modal-meta { font-size: 12px; color: #888; margin-bottom: 16px; }
+
+/* ---- Unga Bunga mode ---- */
+
+/* Dashboard header tools (tone toggle, Go Unga Bunga, streak) */
+.dashboard-header-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.streak-chip {
+  font-size: 12px; font-weight: 700; color: #9a3412;
+  background: #ffedd5; border: 1px solid #fdba74; border-radius: 999px; padding: 4px 10px;
+}
+.tone-toggle { font-size: 12px; padding: 6px 12px; }
+.tone-toggle-on { background: #1f2937; color: #fff; }
+
+/* Time Debt: "Direction of Mind" defense-mechanism picker (Unga Bunga tone) */
+.modal-card-unga { background: #0f172a; color: #e2e8f0; }
+.modal-card-unga .modal-heading-danger { color: #f87171; }
+.modal-card-unga .modal-body { color: #cbd5e1; }
+.defense-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+.defense-option {
+  display: flex; align-items: flex-start; gap: 10px; cursor: pointer;
+  border: 1px solid #334155; border-radius: 10px; padding: 12px; font-size: 14px; line-height: 1.35;
+  background: #1e293b; color: #e2e8f0;
+}
+.defense-option input { margin-top: 2px; accent-color: #f87171; }
+.defense-option-selected { border-color: #f87171; background: #422; }
+
+/* Post-overrun punishment menu (3 random draws + the harsh "lock" final straw) */
+.punishment-card .modal-body { color: #cbd5e1; }
+.punishment-list { display: flex; flex-direction: column; gap: 10px; }
+.punishment-option {
+  display: flex; align-items: center; gap: 12px; text-align: left; cursor: pointer;
+  border: 1px solid #334155; border-radius: 10px; padding: 12px 14px;
+  background: #1e293b; color: #e2e8f0; font: inherit;
+}
+.punishment-option:hover { border-color: #f87171; background: #24304a; }
+.punishment-icon { font-size: 22px; line-height: 1; flex-shrink: 0; }
+.punishment-text { display: flex; flex-direction: column; gap: 2px; }
+.punishment-cat {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #94a3b8;
+}
+.punishment-label { font-size: 14px; line-height: 1.35; }
+/* The harsh final straw stands apart from the escapable options. */
+.punishment-option-harsh { border-color: #b91c1c; background: #3a0d0d; }
+.punishment-option-harsh:hover { border-color: #f87171; background: #4a1010; }
+.punishment-option-harsh .punishment-cat { color: #fca5a5; }
+
+/* The single-task lockdown screen (Go Unga Bunga / penalty lock) */
+.focus-lock {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  min-height: 100vh; padding: 32px; background: #f7f7f8;
+}
+.focus-lock-unga { background: #0b0f1a; color: #e2e8f0; }
+.focus-lock-inner { width: 100%; max-width: 560px; text-align: center; }
+.focus-lock-eyebrow {
+  font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  color: #94a3b8; margin-bottom: 12px;
+}
+.focus-lock-title { font-size: 30px; font-weight: 800; line-height: 1.2; margin: 0 0 12px; }
+.focus-lock-artifact { font-size: 15px; color: #94a3b8; margin: 0 0 28px; }
+.focus-lock-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-bottom: 24px; }
+.focus-lock-note { font-size: 13px; margin-top: 8px; }
+.focus-lock-note-penalty { color: #f87171; font-weight: 700; }
+.focus-lock-empty { color: #94a3b8; }
+.focus-lock-choices { display: flex; flex-direction: column; gap: 10px; margin: 8px 0 20px; text-align: left; }
+.focus-lock-choice {
+  border: 1px solid #334155; background: #1e293b; color: #e2e8f0;
+  border-radius: 10px; padding: 14px 16px; font-size: 15px; font-weight: 600; cursor: pointer;
+}
+.focus-lock-choice:hover { border-color: #f87171; }
+.focus-lock-standdown {
+  background: none; border: none; color: #64748b; font-size: 13px; text-decoration: underline;
+  cursor: pointer; margin-top: 8px;
+}
+.focus-lock:not(.focus-lock-unga) .focus-lock-choice { background: #fff; color: #111; border-color: #ccc; }

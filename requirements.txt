@@ -1,0 +1,48 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Task Control — Requirements / Prerequisites
+#
+# NOTE: This is a Node.js + Electron project, not a Python one. The AUTHORITATIVE
+# dependency list is desktop-app/package.json (+ package-lock.json) — install it
+# with `npm install`, not `pip`. This file documents the SYSTEM-level tools and
+# optional services you need to build and run the app.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# --- Required: runtime / build toolchain ------------------------------------
+Node.js >= 18            # tested on 18 / 20 LTS (needed for Vite 5 + Electron 31)
+npm >= 9                 # bundled with Node 18+
+
+# --- Required: npm packages (installed via `cd desktop-app && npm install`) --
+# Runtime:
+#   react            ^18.3.1
+#   react-dom        ^18.3.1
+#   sql.js           ^1.11.0     (WASM SQLite — no native build needed)
+# Dev / build:
+#   electron         ^31.3.1
+#   vite             ^5.4.1
+#   @vitejs/plugin-react ^4.3.1
+#   concurrently     ^8.2.2
+#   cross-env        ^7.0.3
+#   wait-on          ^7.2.0
+
+# --- Optional: AI milestone planning ----------------------------------------
+Ollama                   # local LLM runtime — https://ollama.com
+llama3                   # model:  `ollama pull llama3`  then  `ollama serve`
+#   The app runs fine without Ollama; only the "generate plan" feature needs it.
+
+# --- Optional: Almighty Guide (live-web how-to) ------------------------------
+Tavily API key           # set env var TAVILY_API_KEY, or paste in-app.
+#   Never commit the key. It is stored only in the OS app-data settings.json.
+
+# --- Platform ----------------------------------------------------------------
+# Desktop only: Windows 10+, macOS, or Linux (Electron). No mobile runtime is
+# required for the active desktop-app.
+#
+# The LEGACY React Native / Expo port at the repo root (reference only) would
+# additionally need the Expo CLI + expo ~51 / react-native 0.74 — see the root
+# package.json. It is not the build target.
+
+# --- Install & run -----------------------------------------------------------
+#   cd desktop-app
+#   npm install
+#   npm run dev      # dev (Vite + Electron)
+#   npm run build && npm start   # production-style run

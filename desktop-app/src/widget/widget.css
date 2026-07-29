@@ -1,0 +1,161 @@
+* { box-sizing: border-box; }
+
+html, body, #widget-root { height: 100%; margin: 0; }
+
+body {
+  font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  background: #1e1f24;
+  color: #f3f4f6;
+  overflow: hidden;
+  user-select: none;
+}
+
+.tw {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 10px 12px 12px;
+  gap: 10px;
+}
+
+/* 1. Clock ----------------------------------------------------------------- */
+.tw-clock-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  /* draggable so grabbing the clock area moves the frameless window */
+  -webkit-app-region: drag;
+}
+.tw-clock {
+  font-size: 34px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 1px;
+}
+.tw-clock-toggle {
+  -webkit-app-region: no-drag;
+  background: #2b2d33;
+  color: #c7cbd1;
+  border: 1px solid #3a3d45;
+  border-radius: 999px;
+  padding: 3px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.tw-clock-toggle:hover { background: #33363d; }
+
+/* 2. Milestone header ------------------------------------------------------ */
+.tw-header {
+  font-size: 13px;
+  font-weight: 700;
+  color: #e5e7eb;
+  text-align: center;
+  padding: 4px 6px;
+  border-top: 1px solid #2e3037;
+  border-bottom: 1px solid #2e3037;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tw-drag { -webkit-app-region: drag; }
+
+/* 3. Task list (max 5, contextual) ---------------------------------------- */
+.tw-tasks {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-y: auto;
+}
+.tw-task {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+.tw-task-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tw-task-time { font-variant-numeric: tabular-nums; font-size: 11px; opacity: 0.85; flex-shrink: 0; }
+.tw-task-clickable { cursor: pointer; }
+.tw-task-clickable:hover { background: #2b2d33; }
+
+/* completed: light gray, strikethrough */
+.tw-task-completed { color: #7d828c; }
+.tw-task-completed .tw-task-title { text-decoration: line-through; }
+
+/* active (being timed): bold green */
+.tw-task-active {
+  color: #34d399;
+  font-weight: 700;
+  background: rgba(52, 211, 153, 0.1);
+  border: 1px solid rgba(52, 211, 153, 0.4);
+}
+
+/* pending / not done: normal (light, since this is a dark widget) */
+.tw-task-pending { color: #e5e7eb; }
+
+.tw-empty { color: #7d828c; font-size: 12px; text-align: center; padding: 12px 0; }
+
+/* 4. Controls -------------------------------------------------------------- */
+.tw-controls {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  padding-top: 4px;
+  -webkit-app-region: no-drag;
+}
+.tw-btn {
+  width: 44px;
+  height: 34px;
+  border-radius: 8px;
+  border: none;
+  font-size: 15px;
+  cursor: pointer;
+  color: #fff;
+}
+.tw-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.tw-play { background: #16a34a; }
+.tw-pause { background: #d97706; }
+.tw-close { background: #3a3d45; }
+.tw-play:hover:not(:disabled) { background: #15803d; }
+.tw-pause:hover:not(:disabled) { background: #b45309; }
+.tw-close:hover { background: #4a4d55; }
+
+/* 5. Tanking Boredom ------------------------------------------------------- */
+.tw-boredom-label { color: #f59e0b; font-weight: 700; }
+.tw-boredom-body { align-items: center; justify-content: center; text-align: center; }
+.tw-boredom-btn {
+  -webkit-app-region: no-drag;
+  width: 100%;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid #3a3d45;
+  background: #2b2d33;
+  color: #f3f4f6;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.tw-boredom-btn:hover { background: #33363d; }
+.tw-boredom-btn-on { background: #7c2d12; border-color: #b45309; color: #fed7aa; }
+
+/* Unga Bunga confrontation overlay (Pause / Close) ------------------------- */
+.tw-confront {
+  position: fixed; inset: 0;
+  background: rgba(3, 7, 18, 0.88);
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px; z-index: 20;
+  -webkit-app-region: no-drag;
+}
+.tw-confront-card { text-align: center; max-width: 260px; }
+.tw-confront-heading { font-size: 17px; font-weight: 800; color: #f87171; margin-bottom: 8px; }
+.tw-confront-body { font-size: 13px; color: #e5e7eb; line-height: 1.4; margin-bottom: 16px; }
+.tw-confront-actions { display: flex; flex-direction: column; gap: 8px; }
+.tw-confront-stay { background: #16a34a; width: 100%; height: 38px; }
+.tw-confront-give { background: #3a3d45; width: 100%; height: 34px; font-size: 12px; }
+.tw-confront-stay:hover { background: #15803d; }
+.tw-confront-give:hover { background: #4a4d55; }

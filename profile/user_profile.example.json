@@ -1,0 +1,54 @@
+{
+  "user_id": "b3f1c2a0-0000-4000-8000-000000000001",
+  "version": 1,
+  "created_at": "2026-07-01T09:00:00Z",
+  "updated_at": "2026-07-17T08:30:00Z",
+
+  "personalization": {
+    "tone_preference": "encouraging",
+    "work_hours": { "start": "09:00", "end": "18:00" },
+    "peak_energy_windows": ["morning"],
+    "risk_tolerance": "medium"
+  },
+
+  "time_economy": {
+    "time_debt_minutes": 45,
+    "guilt_free_bank_minutes": 20,
+    "ledger": [
+      {
+        "date": "2026-07-15T14:10:00Z",
+        "task_id": 12,
+        "type": "debt",
+        "delta_minutes": 30,
+        "justification": "Underestimated API integration complexity."
+      },
+      {
+        "date": "2026-07-16T11:00:00Z",
+        "task_id": 13,
+        "type": "bank",
+        "delta_minutes": -20
+      }
+    ]
+  },
+
+  "estimation_calibration": {
+    "low_effort_low_impact":   { "sample_count": 8,  "avg_actual_to_estimate_ratio": 0.95 },
+    "low_effort_high_impact":  { "sample_count": 3,  "avg_actual_to_estimate_ratio": 1.10 },
+    "high_effort_low_impact":  { "sample_count": 2,  "avg_actual_to_estimate_ratio": 1.05 },
+    "high_effort_high_impact": { "sample_count": 5,  "avg_actual_to_estimate_ratio": 1.35 }
+  },
+
+  "streaks": {
+    "current_streak_days": 4,
+    "longest_streak_days": 11,
+    "last_completed_date": "2026-07-16"
+  },
+
+  "big_vague_goals": [
+    {
+      "goal_id": 1,
+      "text": "Launch my personal portfolio site",
+      "created_at": "2026-07-01T09:00:00Z"
+    }
+  ]
+}
