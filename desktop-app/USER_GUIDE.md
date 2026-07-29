@@ -195,6 +195,14 @@ and this is where you actually *see* it and act on it.
 - **Estimate accuracy** — for each Effort/Impact quadrant, how your actual times
   compare to your estimates (e.g. "High effort / High impact runs 1.4× your
   estimate"). `1.00×` is dead-on; over 1 means you underestimate that quadrant.
+- **Reliability & capacity** — how your work actually lands against its own dates:
+  the share you **finish on time** vs. **late**, how many open tasks have **slipped**
+  (their scheduled date already passed), and the same on-time breakdown per
+  quadrant. Alongside it, your **learned daily capacity** — the realistic amount of
+  work you clear on an active day (recency-weighted, so it adapts) — and a **14-day
+  load strip** showing planned minutes per upcoming day against that capacity, with
+  over-packed days flagged. This is derived from data you already generate; nothing
+  new to fill in.
 - **Consistency** — a GitHub-style heatmap of your completions over recent weeks.
 - **Recent activity** — a readable feed of the `time_economy.ledger` (debt, bank,
   boredom-tanks, punishments).
@@ -204,12 +212,21 @@ Effort/Impact quadrant the estimate field shows a hint based on your own history
 ("tasks like this run ~1.4× — consider 42 min") with a one-click apply. It's only
 a suggestion; it never overwrites your number on its own.
 
+**Overload warning when scheduling.** Also on **New Task**, if the day you pick is
+already fuller than your learned capacity (counting this task's *realistic* cost —
+your estimate scaled by that quadrant's history), a warning appears with a
+one-click **"day N"** button that jumps to the soonest lighter day. Advisory only;
+it never moves anything on its own.
+
 **Smart priority queue.** "Today's Queue" is no longer sorted by date alone — it's
 scored by **leverage** (Impact weighed against Effort) plus **due-date urgency**,
 so quick, high-impact, and overdue work floats to the top. Each card shows a
-quadrant label (**Quick Win / Big Bet / Filler / Trap**) and an **⚠ Overdue** chip
-when it's past its date. Use the **Priority ↔ Date** toggle above the list to
-switch back to plain chronological order any time.
+quadrant label (**Quick Win / Big Bet / Filler / Trap**), an **⚠ Overdue** chip
+when it's past its date, and a **Slip-prone** chip on task *types* you chronically
+let slide — those also get nudged a little higher so they stop rotting. Above the
+list, an **"On your plate now"** meter sums everything due today or overdue (in
+realistic minutes) against your learned daily capacity. Use the **Priority ↔ Date**
+toggle to switch back to plain chronological order any time.
 
 **Reminders & the system tray.** Turn on **"Notify me about tasks due today or
 overdue"** in Insights (on by default) and the app raises an OS notification for

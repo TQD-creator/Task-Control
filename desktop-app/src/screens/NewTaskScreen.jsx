@@ -5,6 +5,15 @@
 import React, { useEffect, useState } from 'react';
 import EffortImpactMatrix from '../components/EffortImpactMatrix.jsx';
 import { suggestEstimate } from '../lib/calibration.js';
+import {
+  learnedCapacity,
+  realisticMinutes,
+  dayLoadStatus,
+  loadForDay,
+  soonestOpenDay,
+  addDaysStr,
+  daysBetween,
+} from '../lib/behaviorModel.js';
 
 export default function NewTaskScreen({ milestoneId, onSave, onCancel }) {
   const [title, setTitle] = useState('');
@@ -17,14 +26,54 @@ export default function NewTaskScreen({ milestoneId, onSave, onCancel }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [profile, setProfile] = useState(null);
+  const [capacity, setCapacity] = useState(null);
+  const [scheduleLoad, setScheduleLoad] = useState(null);
+  const [milestoneStart, setMilestoneStart] = useState(null);
 
-  // Load the profile once so we can offer a calibration-based estimate hint.
+  // Load the profile (calibration estimate hint) plus the adaptive inputs: the
+  // learned daily capacity, the upcoming planned load, and this milestone's
+  // start date (so a dayOffset resolves to a real calendar day to check load).
   useEffect(() => {
-    window.api.profile.load().then(setProfile).catch(() => {});
-  }, []);
+    Promise.all([
+      window.api.profile.load(),
+      window.api.stats.overview(),
+      window.api.stats.scheduleLoad(21),
+      window.api.milestones.get(milestoneId),
+    ])
+      .then(([p, s, sched, m]) => {
+        setProfile(p);
+        setCapacity(learnedCapacity(s.by_day));
+        setScheduleLoad(sched);
+        setMilestoneStart(m?.start_date || null);
+      })
+      .catch(() => {});
+  }, [milestoneId]);
 
   // A suggestion for the current quadrant, if the user has enough history there.
   const hint = suggestEstimate(profile, effort, impact, parseInt(estimatedMinutes, 10));
+
+  // Overload check: resolve the chosen dayOffset to a date, add this task's
+  // realistic cost to that day's existing planned load, and flag when it tips
+  // the day past the user's learned capacity. `suggestedOffset` is the soonest
+  // lighter day, expressed back in this milestone's dayOffset terms.
+  const parsedMinutes = parseInt(estimatedMinutes, 10);
+  const parsedOffset = parseInt(dayOffset, 10);
+  let overload = null;
+  if (capacity && milestoneStart && Number.isFinite(parsedOffset)) {
+    const targetDate = addDaysStr(milestoneStart, Math.max(0, parsedOffset));
+    const cost = realisticMinutes(profile, effort, impact, Number.isFinite(parsedMinutes) ? parsedMinutes : 0);
+    const dayTotal = loadForDay(scheduleLoad, targetDate) + cost;
+    if (dayLoadStatus(dayTotal, capacity) === 'overloaded') {
+      const openFromToday = soonestOpenDay(scheduleLoad, capacity, cost);
+      let suggestedOffset = null;
+      if (openFromToday != null && scheduleLoad?.from) {
+        const suggestedDate = addDaysStr(scheduleLoad.from, openFromToday);
+        const off = daysBetween(milestoneStart, suggestedDate);
+        if (off > parsedOffset) suggestedOffset = off; // only ever push later
+      }
+      overload = { targetDate, dayTotal, suggestedOffset };
+    }
+  }
 
   const canSave = title.trim().length > 0;
 
@@ -92,6 +141,21 @@ export default function NewTaskScreen({ milestoneId, onSave, onCancel }) {
         <div className="split-col">
           <label className="label">Starts (days from milestone start)</label>
           <input className="input" type="number" value={dayOffset} onChange={(e) => setDayOffset(e.target.value)} />
+          {overload && (
+            <p className="overload-warn">
+              ⚠ That day already holds ~{Math.round(overload.dayTotal)} min of work — over your usual pace.
+              {overload.suggestedOffset != null ? (
+                <>
+                  {' '}Try{' '}
+                  <button type="button" className="calibration-hint-apply" onClick={() => setDayOffset(String(overload.suggestedOffset))}>
+                    day {overload.suggestedOffset}
+                  </button>{' '}instead.
+                </>
+              ) : (
+                ' Consider spreading your week out.'
+              )}
+            </p>
+          )}
         </div>
       </div>
 

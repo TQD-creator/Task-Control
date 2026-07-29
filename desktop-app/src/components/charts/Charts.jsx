@@ -24,6 +24,51 @@ export function BarRow({ label, value, max = 2, baseline = 1, sublabel, over }) 
   );
 }
 
+// Upcoming-load strip: one vertical bar per day for the next `days`, height =
+// planned minutes, with a dashed line at the learned daily capacity. Days over
+// capacity render in a warning color so an over-packed stretch reads at a
+// glance. `load` is getScheduleLoad() output; `capacityMinutes` may be null
+// (then no line is drawn and nothing is flagged overloaded).
+export function LoadStrip({ load, capacityMinutes, days = 14 }) {
+  const from = load?.from || new Date().toISOString().slice(0, 10);
+  const byDay = new Map((load?.by_day || []).map((d) => [d.day, d.est_minutes || 0]));
+
+  const cells = [];
+  const cursor = new Date(`${from}T00:00:00Z`);
+  for (let i = 0; i < days; i += 1) {
+    const key = cursor.toISOString().slice(0, 10);
+    cells.push({ key, minutes: byDay.get(key) || 0, dow: cursor.getUTCDay() });
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+
+  const cap = capacityMinutes || 0;
+  const peak = Math.max(cap * 1.25, ...cells.map((c) => c.minutes), 1);
+  const capPct = cap > 0 ? Math.min(100, (cap / peak) * 100) : null;
+
+  return (
+    <div className="load-strip">
+      {capPct != null && (
+        <div className="load-cap-line" style={{ bottom: `calc(${capPct}% + 18px)` }} title={`capacity ~${cap} min/day`} />
+      )}
+      <div className="load-strip-bars">
+        {cells.map((c) => {
+          const h = Math.min(100, (c.minutes / peak) * 100);
+          const over = cap > 0 && c.minutes > cap * 1.25;
+          const weekend = c.dow === 0 || c.dow === 6;
+          return (
+            <div className="load-col" key={c.key} title={`${c.key}: ${c.minutes} min planned`}>
+              <div className="load-bar-track">
+                <div className={`load-bar${over ? ' load-bar-over' : ''}`} style={{ height: `${h}%` }} />
+              </div>
+              <span className={`load-tick${weekend ? ' load-tick-weekend' : ''}`}>{c.key.slice(8)}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // GitHub-style contribution heatmap. `data` is [{ day: 'YYYY-MM-DD', count }].
 // Renders `weeks` columns of 7 day-cells ending today (UTC-aligned to match the
 // SQLite date() grouping the stats come from).

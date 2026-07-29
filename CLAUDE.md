@@ -193,6 +193,45 @@ Electron built-ins).
   import backs up the current pair then `app.relaunch()`s). Tray icon:
   `desktop-app/build/tray.png`.
 
+## Adaptive behavior model (upgrade)
+
+A learning layer that reads back signals the app already records but never
+surfaced — **how work lands against its own dates** and **how much the user
+realistically clears per day** — and uses them advisorily (never silently) across
+Insights, New Task, and the dashboard queue. Same **zero-dependency** rule:
+lightweight recency-weighted / windowed statistics (the `estimation_calibration`
+family), pure-JS model + SVG. **No SQLite schema change** — everything derives
+from existing columns.
+
+- **DB aggregates** (`electron/db/database.js`, reads only):
+  - `getReliabilityStats(weeks)` — classifies completed tasks **on-time vs late**
+    (`date(completed_at)` vs `scheduled_date`) and counts open **slipped** tasks
+    (`scheduled_date < today`), overall and **per quadrant** (`quadrantLabel`).
+  - `getScheduleLoad(fromDate, days)` — per upcoming day, open-task count +
+    `SUM(estimated_minutes)`.
+  - `getCompletionStats().by_day` now also carries `minutes` (`SUM(actual_minutes)`)
+    for the capacity model.
+  - `computePriority(task, todayStr, slipMap)` takes an optional per-quadrant
+    slip-rate map; a chronically-slipped quadrant (>50%, ≥3 samples) gets a **+1**
+    nudge. `getActiveTaskQueue()` builds the map via `getQuadrantSlipMap()` and
+    tags each row `slip_risk`.
+  - **Tasks carry `scheduled_date` only** — `due_date` lives on `milestones`, not
+    `tasks`. Any task-level deadline query must key off `scheduled_date` (an
+    earlier `due_date` reference in `getDueTasks` was a latent crash, now fixed).
+- **Pure model** (`src/lib/behaviorModel.js`, unit-tested): `learnedCapacity`
+  (recency-weighted minutes+tasks per active day), `realisticMinutes` (estimate ×
+  calibration ratio — ties the two learning systems), `dayLoadStatus`
+  (`light|balanced|overloaded`, overloaded >1.25× capacity), `reliabilityRates`,
+  `soonestOpenDay` (first upcoming day under capacity → the "lighter day"
+  suggestion), `forecastDays`, plus `addDaysStr`/`daysBetween`/`loadForDay` helpers.
+- **IPC**: `stats:reliability` / `stats:scheduleLoad` (→ `window.api.stats.*`);
+  capacity/forecast are derived in the renderer from `stats.overview().by_day`.
+- **Surfacing**: Insights **"Reliability & capacity"** section (on-time/late/slipped
+  bars, per-quadrant rows, capacity card, `LoadStrip` in `Charts.jsx`, forecast
+  line); New Task **overload warning** + one-click lighter day; dashboard
+  **"On your plate now"** meter + **Slip-prone** chip. Tone-agnostic (the confirmed
+  choice was "same as encouraging"), so no `tone.js` change.
+
 ## Conventions
 
 - Renderer never accesses Node/DB directly — always go through `window.api.*`

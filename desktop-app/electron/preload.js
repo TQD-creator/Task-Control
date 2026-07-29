@@ -28,6 +28,8 @@ contextBridge.exposeInMainWorld('api', {
   },
   stats: {
     overview: () => ipcRenderer.invoke('stats:overview'),
+    reliability: () => ipcRenderer.invoke('stats:reliability'),
+    scheduleLoad: (days) => ipcRenderer.invoke('stats:scheduleLoad', days),
   },
   data: {
     export: () => ipcRenderer.invoke('data:export'),

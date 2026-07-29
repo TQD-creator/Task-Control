@@ -257,7 +257,12 @@ function quadrantLabel(effort, impact) {
 // urgency stacks on top so an overdue task always outranks a not-yet-due one
 // of the same quadrant. The raw scheduled_date/order_index remain the stable
 // tiebreaker back in getActiveTaskQueue's sort.
-function computePriority(task, todayStr) {
+//
+// `slipMap` (optional) is the adaptive layer: a per-quadrant historical
+// slip-rate (from getReliabilityStats). A task whose quadrant is chronically
+// slipped (>50%) gets a +1 nudge so the work-type the user reliably lets rot
+// surfaces earlier — the learned reliability feeds ordering, not just charts.
+function computePriority(task, todayStr, slipMap = null) {
   const impactWeight = task.impact === 'high' ? 2 : 1;
   const effortWeight = task.effort === 'high' ? 2 : 1;
   let urgency = 0;
@@ -270,7 +275,8 @@ function computePriority(task, todayStr) {
       else if (days <= 7) urgency = 1;
     }
   }
-  return impactWeight * 2 - effortWeight + urgency;
+  const slipBonus = slipMap && slipMap[quadrantLabel(task.effort, task.impact)] > 0.5 ? 1 : 0;
+  return impactWeight * 2 - effortWeight + urgency + slipBonus;
 }
 
 // Active queue for the Dashboard: pending/in_progress tasks across all goals.
@@ -287,17 +293,34 @@ function getActiveTaskQueue() {
      WHERE tasks.status IN ('pending', 'in_progress')
      ORDER BY tasks.scheduled_date ASC, tasks.order_index ASC`
   );
+  const slipMap = getQuadrantSlipMap();
   return rows
     .map((t) => {
       const date = t.scheduled_date || t.due_date || null;
+      const quadrant = quadrantLabel(t.effort, t.impact);
       return {
         ...t,
-        priority: computePriority(t, todayStr),
+        priority: computePriority(t, todayStr, slipMap),
         overdue: !!date && date < todayStr,
-        quadrant: quadrantLabel(t.effort, t.impact),
+        quadrant,
+        slip_risk: slipMap[quadrant] > 0.5,
       };
     })
     .sort((a, b) => b.priority - a.priority); // Array.sort is stable → keeps date order within a tier
+}
+
+// Per-quadrant slip rate = (late completions + still-open overdue) / all tasks
+// seen in that quadrant. Only quadrants with a minimum sample count report a
+// rate, so a single fluke never re-orders the queue. Feeds computePriority and
+// the dashboard slip-risk chip.
+function getQuadrantSlipMap(weeks = 8, minSamples = 3) {
+  const rel = getReliabilityStats(weeks);
+  const map = {};
+  for (const [quadrant, c] of Object.entries(rel.by_quadrant)) {
+    const total = (c.on_time || 0) + (c.late || 0) + (c.slipped || 0);
+    if (total >= minSamples) map[quadrant] = ((c.late || 0) + (c.slipped || 0)) / total;
+  }
+  return map;
 }
 
 // Aggregate completion stats for the Insights screen. Reads back what the app
@@ -318,7 +341,8 @@ function getCompletionStats(weeks = 8) {
   since.setUTCDate(since.getUTCDate() - sinceDays);
   const sinceStr = since.toISOString().slice(0, 10);
   const byDay = all(
-    `SELECT date(completed_at) AS day, COUNT(*) AS count
+    `SELECT date(completed_at) AS day, COUNT(*) AS count,
+            COALESCE(SUM(actual_minutes), 0) AS minutes
      FROM tasks
      WHERE status = 'completed' AND completed_at IS NOT NULL AND date(completed_at) >= ?
      GROUP BY date(completed_at)
@@ -335,18 +359,88 @@ function getCompletionStats(weeks = 8) {
   };
 }
 
-// Tasks the reminder service should nudge about: still open and due today or
-// earlier (by scheduled_date, falling back to due_date). Cheapest possible
-// shape — just what a notification needs.
+// Tasks the reminder service should nudge about: still open and scheduled for
+// today or earlier. Tasks carry scheduled_date only (due_date lives on
+// milestones), so the reminder keys off that. Cheapest possible shape — just
+// what a notification needs.
 function getDueTasks(todayStr) {
   return all(
-    `SELECT id, title, scheduled_date, due_date
+    `SELECT id, title, scheduled_date
      FROM tasks
      WHERE status IN ('pending', 'in_progress')
-       AND COALESCE(scheduled_date, due_date) IS NOT NULL
-       AND COALESCE(scheduled_date, due_date) <= ?`,
+       AND scheduled_date IS NOT NULL
+       AND scheduled_date <= ?`,
     [todayStr]
   );
+}
+
+// Reliability = how the user's finished (and unfinished) work lands against its
+// own scheduled/due date — the adaptive signal the app records but never reads
+// back. Of tasks completed in the window: on_time (done on/before its date, or
+// dateless) vs. late (done after). Plus a snapshot of currently-open tasks whose
+// date has already passed (slipped). Broken out overall and per Effort/Impact
+// quadrant so a work-type the user chronically lets rot is visible.
+function getReliabilityStats(weeks = 8) {
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const since = new Date();
+  since.setUTCDate(since.getUTCDate() - weeks * 7);
+  const sinceStr = since.toISOString().slice(0, 10);
+
+  // Tasks carry scheduled_date only (due_date lives on milestones), so that's
+  // the deadline every classification here compares against.
+  const completed = all(
+    `SELECT effort, impact, scheduled_date, date(completed_at) AS done
+     FROM tasks
+     WHERE status = 'completed' AND completed_at IS NOT NULL AND date(completed_at) >= ?`,
+    [sinceStr]
+  );
+  const open = all(
+    `SELECT effort, impact, scheduled_date
+     FROM tasks
+     WHERE status IN ('pending', 'in_progress')`
+  );
+
+  const byQuadrant = {};
+  const bump = (effort, impact, field) => {
+    const q = quadrantLabel(effort, impact);
+    const cell = (byQuadrant[q] = byQuadrant[q] || { on_time: 0, late: 0, slipped: 0 });
+    cell[field] += 1;
+  };
+
+  let on_time = 0;
+  let late = 0;
+  let slipped_open = 0;
+  for (const t of completed) {
+    const due = t.scheduled_date || null;
+    if (!due || t.done <= due) { on_time += 1; bump(t.effort, t.impact, 'on_time'); }
+    else { late += 1; bump(t.effort, t.impact, 'late'); }
+  }
+  for (const t of open) {
+    const due = t.scheduled_date || null;
+    if (due && due < todayStr) { slipped_open += 1; bump(t.effort, t.impact, 'slipped'); }
+  }
+  return { on_time, late, slipped_open, by_quadrant: byQuadrant, weeks };
+}
+
+// Planned load per upcoming day: for open tasks scheduled in [fromDate, +days),
+// the task count and summed estimated_minutes per day. Feeds the New-Task
+// overload warning and the Insights load strip (compared against learned
+// capacity in the renderer). Only days that actually carry work are returned.
+function getScheduleLoad(fromDate, days = 14) {
+  const from = fromDate || new Date().toISOString().slice(0, 10);
+  const to = addDays(from, days);
+  const byDay = all(
+    `SELECT scheduled_date AS day, COUNT(*) AS count,
+            COALESCE(SUM(estimated_minutes), 0) AS est_minutes
+     FROM tasks
+     WHERE status IN ('pending', 'in_progress')
+       AND scheduled_date IS NOT NULL
+       AND scheduled_date >= ? AND scheduled_date < ?
+     GROUP BY scheduled_date
+     ORDER BY scheduled_date ASC`,
+    [from, to]
+  );
+  return { from, days, by_day: byDay };
 }
 
 function updateTask(id, fields) {
@@ -459,6 +553,8 @@ module.exports = {
   getTaskById,
   getActiveTaskQueue,
   getCompletionStats,
+  getReliabilityStats,
+  getScheduleLoad,
   getDueTasks,
   updateTask,
   deleteTask,

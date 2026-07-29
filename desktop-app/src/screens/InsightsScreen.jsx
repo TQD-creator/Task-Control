@@ -4,8 +4,11 @@
 // repay/spend controls that close the economy loop, and Backup/Restore).
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { BarRow, Heatmap } from '../components/charts/Charts.jsx';
+import { BarRow, Heatmap, LoadStrip } from '../components/charts/Charts.jsx';
 import { isUngaBunga } from '../lib/tone.js';
+import { learnedCapacity, reliabilityRates } from '../lib/behaviorModel.js';
+
+const QUADRANT_ORDER = ['Quick Win', 'Big Bet', 'Filler', 'Trap'];
 
 const BUCKET_ORDER = [
   ['low_effort_high_impact', 'Low effort / High impact'],
@@ -30,6 +33,13 @@ function fmtHours(seconds) {
   return `${m}m`;
 }
 
+function fmtMinutes(min) {
+  const h = Math.floor(min / 60);
+  const m = Math.round(min % 60);
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+
 function describeLedger(entry) {
   const label = LEDGER_LABELS[entry.type] || entry.type;
   let detail = '';
@@ -46,15 +56,24 @@ function describeLedger(entry) {
 export default function InsightsScreen({ onBack, tone }) {
   const [profile, setProfile] = useState(null);
   const [stats, setStats] = useState(null);
+  const [reliability, setReliability] = useState(null);
+  const [scheduleLoad, setScheduleLoad] = useState(null);
   const [repayAmt, setRepayAmt] = useState('15');
   const [spendAmt, setSpendAmt] = useState('15');
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState(null);
 
   const load = useCallback(async () => {
-    const [p, s] = await Promise.all([window.api.profile.load(), window.api.stats.overview()]);
+    const [p, s, rel, sched] = await Promise.all([
+      window.api.profile.load(),
+      window.api.stats.overview(),
+      window.api.stats.reliability(),
+      window.api.stats.scheduleLoad(14),
+    ]);
     setProfile(p);
     setStats(s);
+    setReliability(rel);
+    setScheduleLoad(sched);
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -171,6 +190,68 @@ export default function InsightsScreen({ onBack, tone }) {
           <p className="accuracy-legend">1.00× = dead-on. Over 1 means tasks run longer than you estimate.</p>
         </div>
       )}
+
+      {/* Reliability & capacity — the adaptive layer: how work lands against its
+          own dates, and the daily throughput the app has learned. */}
+      <h2 className="insights-section-title">Reliability &amp; capacity</h2>
+      {(() => {
+        const capacity = learnedCapacity(stats.by_day);
+        const rates = reliabilityRates(reliability);
+        const byQuad = reliability?.by_quadrant || {};
+        const plannedMinutes = (scheduleLoad?.by_day || []).reduce((s, d) => s + (d.est_minutes || 0), 0);
+        const forecast = capacity && plannedMinutes > 0 ? Math.ceil(plannedMinutes / capacity.avgMinutes) : null;
+
+        if (rates.sample === 0 && !capacity) {
+          return <p className="empty-state">Complete and schedule a few tasks to learn your rhythm — on-time rate, slip rate, and your realistic daily capacity.</p>;
+        }
+        return (
+          <>
+            <div className="insights-grid">
+              <div className="stat-card"><div className="stat-num">{Math.round(rates.onTimeRate * 100)}%</div><div className="stat-cap">Finished on time</div></div>
+              <div className="stat-card"><div className="stat-num">{Math.round(rates.lateRate * 100)}%</div><div className="stat-cap">Finished late</div></div>
+              <div className="stat-card"><div className="stat-num">{reliability?.slipped_open || 0}</div><div className="stat-cap">Slipped · open &amp; overdue</div></div>
+              <div className="stat-card">
+                <div className="stat-num">{capacity ? fmtMinutes(capacity.avgMinutes) : '—'}</div>
+                <div className="stat-cap">{capacity ? `~${capacity.avgTasks} tasks / active day` : 'Capacity: not enough data'}</div>
+              </div>
+            </div>
+
+            {QUADRANT_ORDER.some((q) => byQuad[q]) && (
+              <div className="rel-quadrants">
+                {QUADRANT_ORDER.filter((q) => byQuad[q]).map((q) => {
+                  const c = byQuad[q];
+                  const total = c.on_time + c.late + c.slipped;
+                  const pctOnTime = total ? Math.round((c.on_time / total) * 100) : 0;
+                  return (
+                    <div className="rel-row" key={q}>
+                      <span className="rel-row-label">{q}</span>
+                      <div className="rel-bar-track">
+                        {c.on_time > 0 && <div className="rel-seg rel-on-time" style={{ width: `${(c.on_time / total) * 100}%` }} title={`${c.on_time} on time`} />}
+                        {c.late > 0 && <div className="rel-seg rel-late" style={{ width: `${(c.late / total) * 100}%` }} title={`${c.late} late`} />}
+                        {c.slipped > 0 && <div className="rel-seg rel-slipped" style={{ width: `${(c.slipped / total) * 100}%` }} title={`${c.slipped} slipped`} />}
+                      </div>
+                      <span className="rel-row-pct">{pctOnTime}% on time</span>
+                    </div>
+                  );
+                })}
+                <p className="accuracy-legend">
+                  <span className="rel-key rel-on-time" /> on time &nbsp;
+                  <span className="rel-key rel-late" /> late &nbsp;
+                  <span className="rel-key rel-slipped" /> slipped
+                </p>
+              </div>
+            )}
+
+            <h3 className="insights-subtitle">Planned load · next {scheduleLoad?.days || 14} days</h3>
+            <LoadStrip load={scheduleLoad} capacityMinutes={capacity?.avgMinutes} days={scheduleLoad?.days || 14} />
+            {capacity && plannedMinutes > 0 && (
+              <p className="accuracy-legend">
+                {fmtMinutes(plannedMinutes)} of work scheduled in view — about {forecast} day{forecast === 1 ? '' : 's'} at your ~{fmtMinutes(capacity.avgMinutes)}/day pace.
+              </p>
+            )}
+          </>
+        );
+      })()}
 
       {/* Consistency */}
       <h2 className="insights-section-title">Consistency</h2>

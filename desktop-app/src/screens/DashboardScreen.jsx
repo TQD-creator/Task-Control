@@ -6,6 +6,14 @@ import TimeDebtJustificationModal from '../components/TimeDebtJustificationModal
 import PunishmentModal from '../components/PunishmentModal.jsx';
 import { useTaskCompletion } from '../hooks/useTaskCompletion.js';
 import { isUngaBunga, UNGA_BUNGA } from '../lib/tone.js';
+import { learnedCapacity, realisticMinutes, dayLoadStatus } from '../lib/behaviorModel.js';
+
+function fmtMinutes(min) {
+  const h = Math.floor(min / 60);
+  const m = Math.round(min % 60);
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
 
 const EFFORT_IMPACT_COLORS = {
   'low-low': '#9ca3af',
@@ -27,6 +35,8 @@ function AllTasksView({ onOpenGuide, tone, onProfileChanged }) {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState('priority'); // 'priority' | 'date'
+  const [profile, setProfile] = useState(null);
+  const [capacity, setCapacity] = useState(null);
 
   const refresh = useCallback(async () => {
     const queue = await window.api.tasks.activeQueue();
@@ -36,6 +46,21 @@ function AllTasksView({ onOpenGuide, tone, onProfileChanged }) {
   useEffect(() => {
     refresh().finally(() => setLoading(false));
   }, [refresh]);
+
+  // Adaptive inputs for the "on your plate" meter: learned daily capacity and
+  // the calibration profile (to cost tasks in realistic, not typed, minutes).
+  useEffect(() => {
+    Promise.all([window.api.profile.load(), window.api.stats.overview()])
+      .then(([p, s]) => { setProfile(p); setCapacity(learnedCapacity(s.by_day)); })
+      .catch(() => {});
+  }, []);
+
+  // Everything due now (scheduled today or already overdue), priced by the
+  // learned calibration ratio, vs. the learned daily capacity.
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const dueNow = tasks.filter((t) => t.scheduled_date && t.scheduled_date <= todayStr);
+  const dueMinutes = dueNow.reduce((sum, t) => sum + realisticMinutes(profile, t.effort, t.impact, t.estimated_minutes), 0);
+  const loadStatus = capacity ? dayLoadStatus(dueMinutes, capacity) : null;
 
   // After a completion, refresh the queue AND re-read the profile: a dopamine
   // overrun may have armed the penalty lock, which flips the whole shell.
@@ -52,6 +77,19 @@ function AllTasksView({ onOpenGuide, tone, onProfileChanged }) {
   return (
     <>
       {!loading && tasks.length === 0 && <p className="empty-state">No active tasks. Select a goal above to add milestones, or + Goal to start a new one.</p>}
+
+      {!loading && capacity && dueNow.length > 0 && (
+        <div className={`load-meter load-meter-${loadStatus}`}>
+          <span className="load-meter-label">On your plate now</span>
+          <div className="load-meter-track">
+            <div className="load-meter-fill" style={{ width: `${Math.min(100, (dueMinutes / (capacity.avgMinutes * 1.25)) * 100)}%` }} />
+          </div>
+          <span className="load-meter-value">
+            {fmtMinutes(dueMinutes)} vs ~{fmtMinutes(capacity.avgMinutes)}/day
+            {loadStatus === 'overloaded' ? ' · over your pace' : ''}
+          </span>
+        </div>
+      )}
 
       {!loading && tasks.length > 0 && (
         <div className="queue-sort">
@@ -70,6 +108,7 @@ function AllTasksView({ onOpenGuide, tone, onProfileChanged }) {
               </span>
               <div className="task-card-tags">
                 {item.overdue && <span className="overdue-chip" title="Past its scheduled date">⚠ Overdue</span>}
+                {item.slip_risk && <span className="slip-chip" title="You tend to let this type of task slip — it's surfaced earlier">Slip-prone</span>}
                 {item.quadrant && <span className="quadrant-chip">{item.quadrant}</span>}
                 <Badge effort={item.effort} impact={item.impact} />
               </div>

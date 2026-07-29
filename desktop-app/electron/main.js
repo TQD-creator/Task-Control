@@ -220,6 +220,9 @@ function registerIpcHandlers() {
 
   // Aggregate completion stats for the Insights screen.
   ipcMain.handle('stats:overview', () => db.getCompletionStats());
+  // Adaptive layer: reliability (on-time/late/slipped) + upcoming planned load.
+  ipcMain.handle('stats:reliability', () => db.getReliabilityStats());
+  ipcMain.handle('stats:scheduleLoad', (_e, days) => db.getScheduleLoad(null, days || 14));
   ipcMain.handle('tasks:update', (_e, id, fields) => db.updateTask(id, fields));
   ipcMain.handle('tasks:delete', (_e, id) => db.deleteTask(id));
 

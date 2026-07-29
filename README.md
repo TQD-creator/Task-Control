@@ -33,6 +33,13 @@ except the optional AI/web-guide calls you explicitly trigger.
   and due-date urgency (not just date), flags **overdue** tasks, labels each
   quadrant (Quick Win / Big Bet / Filler / Trap), and offers a Priority↔Date
   sort toggle.
+- **Adaptive behavior model** — learns, from data you already generate, your
+  **on-time vs. late** reliability, which task types you chronically **slip**, and
+  your realistic **daily capacity**. It puts that to work: a reliability/capacity
+  readout and 14-day load strip in Insights, an **overload warning** (with a
+  one-click lighter day) when scheduling, an "on your plate" load meter, and a
+  gentle priority nudge for slip-prone work. Lightweight running statistics — no
+  ML dependency.
 - **Reminders & data safety** — optional OS notifications for tasks due today or
   overdue (with a **system tray** so they fire even when the window is closed),
   and one-click **backup / restore** of your database + profile.
