@@ -258,10 +258,31 @@ it disappears.
 
 Not everything is a Goal. The **📝 Notes** button (dashboard header) opens a
 lightweight pad you can dump anything into — it stays out of the way and costs
-nothing to keep open.
+nothing to keep open. There are two ways to capture: **structured notes** (for
+things you add to over time) and a **quick "/" line** (for one-offs and routing).
 
-**Classify with "/".** Start a line with a slash to tell the app what it is (a
-little menu pops up as you type):
+**Structured notes — four fields that auto-merge.** The capture card at the top has:
+
+- **Classification** — a free-form group label you type with a leading **`\`**
+  (e.g. `\work`, `\ideas`, `\health`). Notes are grouped under it in the list.
+- **Header** and **Sub-header** — short identifiers (e.g. `Standup` · `Blockers`).
+- **Content** — the long-form body. Press **Enter to save**; **Shift+Enter** adds a
+  new line so you can write paragraphs.
+
+The clever part is **auto-merge**: if you save a note whose **Classification +
+Header + Sub-header** exactly match one you already have, the new Content is
+**appended to that note** instead of creating a duplicate — so a running log (say
+`\work` · `Standup` · `Blockers`) keeps growing in one place. You'll see a "Merged
+into …" confirmation.
+
+**Reading them back.** Structured notes are listed **grouped by Classification**,
+each shown as just its **Header · Sub-header**. Click a row to **expand** it and see
+the full merged Content; from there you can **Edit** the text or **delete** it. This
+keeps the list scannable — the long content stays tucked away until you want it.
+
+**Classify with "/".** For a quick one-off (or to route something into the rest of
+the app), use the single line below the card. Start it with a slash and a little
+menu pops up as you type:
 
 - **`/plan …`** — a real project. Processing it opens **Quick Capture** pre-filled,
   so the AI can break it into milestones and tasks.

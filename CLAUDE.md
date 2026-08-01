@@ -270,6 +270,20 @@ slash-command; a deterministic engine routes and reminds.
   (+ `updated_at` triggers) — land on fresh + existing DBs, no `ensureColumn`. DB
   CRUD in `database.js` (`createNote`/`getNotes`/`getOpenClassifiedNotes`/…,
   `createChore`/`getChores`/`markChoreDone`/`getDueChores`).
+- **Structured notes (auto-merge)** — a note may also carry
+  `classification`/`header`/`sub_header` (added via `ensureColumn` in *both*
+  `schemaSql.js` and `runMigrations()`; `classification` is a free-form label typed
+  with a leading `\`). A note with a non-empty `header` is *structured*: its identity
+  is the `(classification, header, sub_header)` triple, and `createNote` **appends
+  Content to the existing row instead of duplicating** when the identity already
+  matches a non-dismissed note (returns a transient `merged` flag). Plain and
+  slash-classified notes (no header) behave exactly as before. Renderer helpers in
+  `src/lib/notes.js`: `parseClassification` (strips the leading `\`),
+  `isStructuredNote`, `groupStructuredNotes`. In `NotesScreen.jsx` the structured
+  capture is a 4-field form (Content textarea: **Enter saves, Shift+Enter =
+  newline**), and structured notes render **grouped by Classification as
+  expandable Header · Sub-header rows** (Content hidden until expanded; edit/delete
+  inline). The `notes:create` IPC/preload payload gained the three optional fields.
 - **Slash parser** — pure `src/lib/notes.js` `parseNoteInput(text)` →
   `{ kind, text }` (matches `^/(plan|chore|daily)\s+(.+)`; else `note`) +
   `SLASH_COMMANDS`/`KIND_META`. Unit-tested.

@@ -114,12 +114,22 @@ CREATE TABLE IF NOT EXISTS notes (
                      CHECK (kind IN ('note', 'plan', 'chore', 'daily')),
     status       TEXT    NOT NULL DEFAULT 'open'
                      CHECK (status IN ('open', 'processed', 'dismissed')),
+    -- Structured-note fields. A note with a non-empty header is a structured note:
+    -- (classification, header, sub_header) is its identity, and creating another
+    -- with the same identity appends its Content (text) instead of duplicating.
+    classification TEXT,
+    header         TEXT,
+    sub_header     TEXT,
     created_at   TEXT    NOT NULL DEFAULT (datetime('now')),
     updated_at   TEXT    NOT NULL DEFAULT (datetime('now')),
     processed_at TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_notes_status ON notes (status);
+-- NOTE: the idx_notes_group index on (classification, header, sub_header) is
+-- created in runMigrations() (database.js), NOT here. This whole script runs
+-- before column migrations, so on a pre-existing DB those columns don't exist
+-- yet — creating the index here would throw "no such column" and abort startup.
 
 -- Chores: one-off ('once') or repeating ('daily') reminders that live outside the
 -- Goals tree. A daily chore is due each day until marked done (last_done_date <

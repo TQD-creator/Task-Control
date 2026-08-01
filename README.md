@@ -54,12 +54,16 @@ except the optional AI/web-guide calls you explicitly trigger.
   and email-someone-then-wait-for-a-reply **follow-ups** that nudge you (even while
   you work other tasks), **defer during a focus lock**, and repeat until you answer
   them in the in-app inbox. See [desktop-app/USER_GUIDE.md](desktop-app/USER_GUIDE.md) §9.
-- **Quick Notes & Chores** — a low-friction note pad you can open anytime. Type
-  **`/`** to classify a line — **`/plan`** routes it into Quick Capture, **`/chore`**
-  becomes a one-off reminder, **`/daily`** a repeating daily chore — and a **batch
-  "process"** step (with **Select all**) clears the inbox in one action. Daily
-  chores reset each day, take an optional time, and (like everything) stay silent
-  during a focus lock. See [desktop-app/USER_GUIDE.md](desktop-app/USER_GUIDE.md) §10.
+- **Quick Notes & Chores** — a low-friction note pad you can open anytime. Capture
+  **structured notes** (Classification `\label` / Header / Sub-header / Content) that
+  **auto-merge** — re-saving the same Classification+Header+Sub-header **appends** to
+  the existing note instead of duplicating, and the list groups them by
+  classification as expandable Header · Sub-header rows (Enter saves, Shift+Enter for
+  a newline). Or use the quick **`/`** line — **`/plan`** routes into Quick Capture,
+  **`/chore`** a one-off reminder, **`/daily`** a repeating daily chore — with a
+  **batch "process"** step (and **Select all**) to clear the inbox in one action.
+  Daily chores reset each day, take an optional time, and (like everything) stay
+  silent during a focus lock. See [desktop-app/USER_GUIDE.md](desktop-app/USER_GUIDE.md) §10.
 - **Lock In mode** *(opt-in tone, formerly "Unga Bunga")* — inverts the soft
   defaults for an avoidant stretch: confrontational timer prompts, a
   defense-mechanism picker instead of a free-text excuse box, a streak-only reward

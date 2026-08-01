@@ -9,7 +9,7 @@
 // Notes/chores are cheap rows in the existing DB; nothing here is heavy.
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { parseNoteInput, SLASH_COMMANDS, KIND_META } from '../lib/notes.js';
+import { parseNoteInput, SLASH_COMMANDS, KIND_META, parseClassification, isStructuredNote, groupStructuredNotes } from '../lib/notes.js';
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
@@ -44,7 +44,48 @@ export default function NotesScreen({ onBack, onOpenPlan, initialTab = 'notes' }
   }
   async function deleteNote(id) { await window.api.notes.delete(id); await refreshNotes(); }
 
-  const openClassified = notesList.filter((n) => n.status === 'open' && n.kind !== 'note');
+  // ---- Structured notes (Classification / Header / Sub-Header / Content) ----
+  const [sClass, setSClass] = useState('');
+  const [sHeader, setSHeader] = useState('');
+  const [sSub, setSSub] = useState('');
+  const [sContent, setSContent] = useState('');
+  const [flash, setFlash] = useState('');
+  const [expanded, setExpanded] = useState({});           // note id -> bool
+  const [editNoteId, setEditNoteId] = useState(null);     // structured note being edited
+  const [editContent, setEditContent] = useState('');
+  const headerRef = useRef(null);
+
+  async function addStructured() {
+    const header = sHeader.trim();
+    const content = sContent.trim();
+    if (!header || !content) return; // Header is the identity; Content is the body
+    const res = await window.api.notes.create({
+      text: content,
+      classification: parseClassification(sClass),
+      header,
+      subHeader: sSub.trim(),
+    });
+    // Clear only Content/Sub-Header so rapid appends to the same Header/Class flow.
+    setSContent('');
+    setSSub('');
+    setFlash(res?.merged ? `Merged into “${header}”.` : `Saved “${header}”.`);
+    setTimeout(() => setFlash(''), 2500);
+    headerRef.current?.focus();
+    await refreshNotes();
+  }
+
+  function toggleExpand(id) { setExpanded((e) => ({ ...e, [id]: !e[id] })); }
+  function startEditNote(n) { setEditNoteId(n.id); setEditContent(n.text); }
+  async function saveEditNote() {
+    await window.api.notes.update(editNoteId, { text: editContent });
+    setEditNoteId(null);
+    await refreshNotes();
+  }
+
+  const structuredGroups = groupStructuredNotes(notesList);
+  const plainNotes = notesList.filter((n) => !isStructuredNote(n));
+
+  const openClassified = notesList.filter((n) => n.status === 'open' && n.kind !== 'note' && !isStructuredNote(n));
   const batchable = openClassified.filter((n) => n.kind === 'chore' || n.kind === 'daily');
   const planNotes = openClassified.filter((n) => n.kind === 'plan');
 
@@ -125,12 +166,48 @@ export default function NotesScreen({ onBack, onOpenPlan, initialTab = 'notes' }
 
       {tab === 'notes' && (
         <>
+          <div className="snote-capture">
+            <div className="snote-fields">
+              <div className="snote-field snote-field-class">
+                <label>Classification</label>
+                <input
+                  className="input"
+                  placeholder="\work"
+                  value={sClass}
+                  onChange={(e) => setSClass(e.target.value)}
+                  title="Free-form group label — type it with a leading \"
+                />
+              </div>
+              <div className="snote-field">
+                <label>Header</label>
+                <input ref={headerRef} className="input" placeholder="Standup" value={sHeader} onChange={(e) => setSHeader(e.target.value)} />
+              </div>
+              <div className="snote-field">
+                <label>Sub-header</label>
+                <input className="input" placeholder="Blockers" value={sSub} onChange={(e) => setSSub(e.target.value)} />
+              </div>
+            </div>
+            <textarea
+              className="input snote-content-input"
+              placeholder="Content…  (Enter to save · Shift+Enter for a new line)"
+              rows={3}
+              value={sContent}
+              onChange={(e) => setSContent(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addStructured(); } }}
+            />
+            <div className="snote-capture-foot">
+              <span className="snote-flash">{flash}</span>
+              <span className="snote-merge-hint">Same Classification + Header + Sub-header appends here instead of duplicating.</span>
+              <button type="button" className="button button-save" onClick={addStructured} disabled={!sHeader.trim() || !sContent.trim()}>Save note</button>
+            </div>
+          </div>
+
           <div className="note-add">
             <div className="note-add-input">
               <input
                 ref={inputRef}
                 className="input"
-                placeholder="Jot a note…  (type / to classify)"
+                placeholder="…or a quick line  (type / to classify → chore / daily / plan)"
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter' && !showSlash) addNote(); }}
@@ -186,9 +263,54 @@ export default function NotesScreen({ onBack, onOpenPlan, initialTab = 'notes' }
             </div>
           )}
 
+          {structuredGroups.length > 0 && (
+            <div className="snote-groups">
+              {structuredGroups.map((g) => (
+                <div key={g.classification || '__ungrouped'} className="snote-group">
+                  <div className="snote-group-head">
+                    {g.classification
+                      ? <span className="snote-class-chip">\{g.classification}</span>
+                      : <span className="snote-class-chip snote-class-none">Ungrouped</span>}
+                    <span className="snote-group-count">{g.items.length}</span>
+                  </div>
+                  {g.items.map((n) => (
+                    <div key={n.id} className="snote-item">
+                      <button type="button" className="snote-row" onClick={() => toggleExpand(n.id)}>
+                        <span className="snote-caret">{expanded[n.id] ? '▾' : '▸'}</span>
+                        <span className="snote-title">{n.header}</span>
+                        {n.sub_header && <span className="snote-sub">· {n.sub_header}</span>}
+                      </button>
+                      {expanded[n.id] && (
+                        <div className="snote-body">
+                          {editNoteId === n.id ? (
+                            <>
+                              <textarea className="input snote-content-input" rows={4} value={editContent} onChange={(e) => setEditContent(e.target.value)} />
+                              <div className="snote-body-actions">
+                                <button type="button" className="button button-save" onClick={saveEditNote}>Save</button>
+                                <button type="button" className="button button-cancel" onClick={() => setEditNoteId(null)}>Cancel</button>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div className="snote-content">{n.text}</div>
+                              <div className="snote-body-actions">
+                                <button type="button" className="chore-link" onClick={() => startEditNote(n)}>Edit</button>
+                                <button type="button" className="note-x" onClick={() => deleteNote(n.id)}>✕</button>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="note-list">
-            {notesList.length === 0 && <p className="empty-state">Nothing yet. Jot a thought, or type <code>/</code> to classify it.</p>}
-            {notesList.map((n) => (
+            {notesList.length === 0 && <p className="empty-state">Nothing yet. Add a structured note above, or type <code>/</code> for a quick classified line.</p>}
+            {plainNotes.map((n) => (
               <div key={n.id} className={`note-row${n.status === 'processed' ? ' is-processed' : ''}`}>
                 <span className={`note-chip note-chip-${n.kind}`}>{KIND_META[n.kind].label}</span>
                 <span className="note-text">{n.text}</span>

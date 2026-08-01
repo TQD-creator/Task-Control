@@ -533,7 +533,13 @@ function registerIpcHandlers() {
   // the renderer via the slash-command parser; these are thin CRUD.
   ipcMain.handle('notes:list', () => db.getNotes());
   ipcMain.handle('notes:openQueue', () => db.getOpenClassifiedNotes());
-  ipcMain.handle('notes:create', (_e, payload = {}) => db.createNote({ text: payload.text, kind: payload.kind || 'note' }));
+  ipcMain.handle('notes:create', (_e, payload = {}) => db.createNote({
+    text: payload.text,
+    kind: payload.kind || 'note',
+    classification: payload.classification ?? null,
+    header: payload.header ?? null,
+    subHeader: payload.subHeader ?? null,
+  }));
   ipcMain.handle('notes:update', (_e, id, fields) => db.updateNote(id, fields || {}));
   ipcMain.handle('notes:delete', (_e, id) => { db.deleteNote(id); return true; });
 

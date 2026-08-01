@@ -32,3 +32,30 @@ export const KIND_META = {
   chore: { label: 'Chore', chip: 'chore' },
   daily: { label: 'Daily', chip: 'daily' },
 };
+
+// ---- Structured notes ------------------------------------------------------
+// A structured note has Classification / Header / Sub-Header / Content. The
+// Classification is a free-form label the user types with a leading "\"; strip it
+// to the bare label (so "\work", "work", and "  \\work " all mean "work").
+export function parseClassification(raw) {
+  return (raw || '').trim().replace(/^\\+/, '').trim();
+}
+
+// A note is structured once it has a non-empty header (its identity field).
+export function isStructuredNote(n) {
+  return !!(n && n.header && String(n.header).trim());
+}
+
+// Group structured notes by Classification for the display list. Returns
+// [{ classification, items }] — classification '' means "ungrouped". Groups keep
+// first-seen order; the caller decides sort. Plain/slash notes are ignored here.
+export function groupStructuredNotes(notes) {
+  const groups = new Map();
+  for (const n of notes || []) {
+    if (!isStructuredNote(n)) continue;
+    const key = (n.classification && n.classification.trim()) || '';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(n);
+  }
+  return [...groups.entries()].map(([classification, items]) => ({ classification, items }));
+}

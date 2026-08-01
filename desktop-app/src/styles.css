@@ -522,6 +522,32 @@ textarea.input { min-height: 70px; resize: vertical; }
 .note-x { border: none; background: none; color: #cbd5e1; cursor: pointer; font-size: 14px; padding: 2px 6px; }
 .note-x:hover { color: #ef4444; }
 
+/* Structured notes — Classification / Header / Sub-header / Content + auto-merge */
+.snote-capture { border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px; margin-bottom: 12px; background: #f8fafc; }
+.snote-fields { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.snote-field { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 120px; }
+.snote-field-class { max-width: 160px; }
+.snote-field label { font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.03em; }
+.snote-content-input { width: 100%; resize: vertical; font-family: inherit; line-height: 1.5; }
+.snote-capture-foot { display: flex; align-items: center; gap: 12px; margin-top: 8px; }
+.snote-merge-hint { font-size: 12px; color: #94a3b8; flex: 1; }
+.snote-flash { font-size: 12px; font-weight: 600; color: #16a34a; }
+
+.snote-groups { display: flex; flex-direction: column; gap: 14px; margin-bottom: 16px; }
+.snote-group-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.snote-class-chip { font-size: 12px; font-weight: 700; color: #1d4ed8; background: #dbeafe; border-radius: 6px; padding: 3px 9px; }
+.snote-class-chip.snote-class-none { color: #64748b; background: #f1f5f9; }
+.snote-group-count { font-size: 11px; color: #94a3b8; }
+.snote-item { border: 1px solid #eef2f7; border-radius: 8px; margin-bottom: 6px; overflow: hidden; }
+.snote-row { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; border: none; background: none; cursor: pointer; padding: 10px 12px; font-size: 14px; }
+.snote-row:hover { background: #f8fafc; }
+.snote-caret { color: #94a3b8; font-size: 11px; width: 12px; }
+.snote-title { font-weight: 600; color: #0f172a; }
+.snote-sub { color: #64748b; }
+.snote-body { padding: 0 12px 12px 32px; }
+.snote-content { white-space: pre-wrap; font-size: 14px; line-height: 1.6; color: #334155; padding: 4px 0 8px; }
+.snote-body-actions { display: flex; align-items: center; gap: 10px; }
+
 /* Chores */
 .chore-add { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
 .chore-add .input { flex: 1; min-width: 140px; }

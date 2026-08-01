@@ -48,6 +48,13 @@ function runMigrations() {
   ensureColumn('tasks', 'total_seconds', 'INTEGER NOT NULL DEFAULT 0');
   // Serialized prep spec (tools / checklist / notes) for the preparation phase.
   ensureColumn('tasks', 'prep_json', 'TEXT');
+  // Structured-note fields (classification / header / sub-header) for the auto-
+  // merging note pad. The merge-key index is created idempotently here too, since
+  // CREATE INDEX in schemaSql only runs against a DB that already has the columns.
+  ensureColumn('notes', 'classification', 'TEXT');
+  ensureColumn('notes', 'header', 'TEXT');
+  ensureColumn('notes', 'sub_header', 'TEXT');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_notes_group ON notes (classification, header, sub_header)');
 }
 
 function ensureColumn(table, column, definition) {
@@ -616,7 +623,49 @@ function deleteFollowUp(id) {
 // NOTES (Quick Note pad) + CHORES (one-off / daily reminders)
 // ---------------------------------------------------------------------------
 
-function createNote({ text, kind = 'note' }) {
+// Create a note. A note with a non-empty `header` is a STRUCTURED note whose
+// identity is (classification, header, sub_header): if one with the same identity
+// already exists (and isn't dismissed), the new Content is appended to it instead
+// of inserting a duplicate. The returned note carries a transient `merged` flag so
+// the UI can tell the user which happened. A note without a header is a plain /
+// slash-classified quick note and behaves exactly as before.
+function createNote({ text, kind = 'note', classification = null, header = null, subHeader = null }) {
+  const hdr = header == null ? '' : String(header).trim();
+  const isStructured = hdr !== '';
+
+  if (isStructured) {
+    const cls = classification == null ? null : (String(classification).trim() || null);
+    const sub = subHeader == null ? null : (String(subHeader).trim() || null);
+
+    const existing = get(
+      `SELECT * FROM notes
+       WHERE kind = 'note' AND status != 'dismissed'
+         AND IFNULL(classification, '') = IFNULL(?, '')
+         AND IFNULL(header, '')         = ?
+         AND IFNULL(sub_header, '')     = IFNULL(?, '')
+       ORDER BY id ASC LIMIT 1`,
+      [cls, hdr, sub]
+    );
+
+    if (existing) {
+      const mergedText = `${existing.text}\n\n${text}`.trim();
+      run(`UPDATE notes SET text = ? WHERE id = ?`, [mergedText, existing.id]);
+      persist();
+      const note = getNoteById(existing.id);
+      note.merged = true;
+      return note;
+    }
+
+    run(
+      `INSERT INTO notes (text, kind, classification, header, sub_header) VALUES (?, 'note', ?, ?, ?)`,
+      [text, cls, hdr, sub]
+    );
+    const note = getNoteById(lastInsertRowId());
+    persist();
+    note.merged = false;
+    return note;
+  }
+
   run(`INSERT INTO notes (text, kind) VALUES (?, ?)`, [text, kind]);
   const id = lastInsertRowId();
   persist();
