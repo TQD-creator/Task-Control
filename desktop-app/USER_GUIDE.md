@@ -80,7 +80,7 @@ Click **Complete** on any task card in Today's Queue:
 Both cases also update your daily streak and the Effort/Impact estimation
 calibration — which biases future AI-suggested estimates, powers the estimate
 hint on the New Task screen, and shows up as your accuracy chart in **📊 Insights**
-(see §8).
+(see §11).
 
 ## 6. Timing your work — the floating Timer widget
 
@@ -126,14 +126,14 @@ first time you launch the updated app.
 > be visible in the newly-shown milestone's list until you pause it. Pause before
 > switching milestones if you want the widget to always show what it's timing.
 
-## 7. Unga Bunga mode — for when "encouraging" backfires
+## 7. Lock In mode (formerly Unga Bunga) — for when "encouraging" backfires
 
 The app ships in an **encouraging** tone. For an avoidant/self-loathing stretch
-where soft language just becomes another exit, switch tone to **Unga Bunga**: it
+where soft language just becomes another exit, switch tone to **Lock In**: it
 stops asking nicely and starts naming the defense mechanism.
 
 **Turn it on** two ways:
-- Click **🦣 Unga Bunga: OFF → ON** in the dashboard header, or
+- Click **🔒 Lock In: OFF → ON** in the dashboard header, or
 - Close the app and set `"tone_preference": "unga_bunga"` in `user_profile.json`.
 
 What changes while it's on:
@@ -151,7 +151,7 @@ What changes while it's on:
   "free time" (which just invites slacking). The **daily streak is the only
   reward** — proof you're rewriting who you are through execution. The current
   streak shows as a 🔥 chip in the header.
-- **Go Unga Bunga (single-task lockdown).** Click **Go Unga Bunga** and the whole
+- **Lock In (single-task lockdown).** Click **Lock In now** and the whole
   dashboard vanishes: you pick **one** task and everything else — goals,
   milestones, dates, the queue — is hidden, so your brain can't add the
   overwhelming dimension of time. Finish it, or click **Stand down** to return.
@@ -175,11 +175,117 @@ What changes while it's on:
   still and resist the urge to escape" into a tracked action. Each session is
   saved to the ledger as a `boredom_tank` entry.
 
-> Unga Bunga is a *tone*, not a separate account — flip it off any time (header
+> Lock In is a *tone*, not a separate account — flip it off any time (header
 > toggle or the JSON) and every default behavior returns. The **penalty lock** is
 > the one thing you can't click away; it waits for tomorrow.
 
-## 8. Insights, smart queue, reminders & backup
+## 8. Leisure Loan — borrow play, repay as focus
+
+Some days you want to play *first*. Leisure Loan lets you — as a **loan**, not a
+free pass. You borrow a set amount of play time now and repay it right after as
+**forced focus time, plus 25% interest**. It sits beside the two "money jars" from
+§5: the **Guilt-Free Bank** is leisure you *earned*, **Time Debt** is focus you
+*owe*, and a Leisure Loan is leisure you *borrow* against work you're about to do.
+
+**How it works** — click **🎮 Leisure Loan** in the dashboard header:
+
+1. **Borrow.** Pick the task you'll work on next and how many minutes of play you
+   want. You see exactly what you'll owe (e.g. 10 min play → 13 min of focus).
+2. **Play.** A countdown of your borrowed free time. Do whatever you like — the app
+   isn't watching. (*Start prep now* skips ahead.)
+3. **Prep.** A short "get your tools ready" screen (up to 5 minutes) showing the
+   task you're about to start.
+4. **Repay.** The app locks onto that one task for `borrowed × 1.25` minutes with a
+   live countdown — the same single-task lockdown as Lock In mode (§7), with
+   **no exit** until the clock runs out. Finishing the task early clears it.
+
+**You have to earn it.** Leisure Loan unlocks only once you've built a **3-day
+streak** — proof you're in good standing. Below that the button is disabled and
+tells you why. It's **once per day**; keep a **7-day streak** and the cap rises
+(20 → 30 min) and you get a **second daily use**.
+
+**No dodging the bill.** Once you've borrowed, the repayment is owed. Quit the app
+mid-break to escape it and it simply arms the focus lock the next time you open the
+app. If your computer sleeps through the repayment window, that's real time passing
+— the lock releases only when its clock is genuinely up.
+
+> Leisure Loan works in **both** tones; only the wording changes (Lock In is
+> blunter about the bill). It's a deliberate speed-bump on play, not a way around
+> the work.
+
+## 9. Prep phase & Follow-ups — start, and follow through
+
+The app doesn't only push — it helps you get ready, and it keeps track of the
+loose ends a task leaves behind.
+
+**🧰 Prepare a task.** On any task in the queue, click **🧰 Prepare** to open a
+prep screen:
+
+- **Tools & materials** — list what you need in front of you (files, accounts,
+  hardware).
+- **Get-ready checklist** — small steps to clear the runway; tick them off.
+- **What you've done** — a notes box to jot where you left off.
+- **✨ Suggest prep** — asks the local AI to propose the tools, checklist, and
+  follow-ups from the task itself; tap any suggestion to add it. If the AI isn't
+  running, the screen still works — just fill it in yourself. Nothing is saved
+  until you add it.
+- **▶ Start & time it** — saves your prep and opens the floating timer.
+
+Everything you enter is saved with the task, so it's there next time.
+
+**🧾 Follow-ups — the app's check-ins.** Some tasks aren't done when you stop
+working: you still have to *submit* the file, or *email* someone and wait for their
+reply. Add a follow-up (from the prep screen, or let **Suggest prep** propose one):
+
+- **Submit by a deadline** — near the due date the app asks *"Did you submit?"* and
+  repeats until you say yes.
+- **Email someone & await reply** — first *"Have you sent it?"*, then once sent it
+  keeps asking *"Have they replied yet?"* until you confirm they have.
+- **Other loose end** — any custom check-in.
+
+Follow-ups nudge you with an OS notification **even while you work on other tasks**.
+Because a desktop notification can't reliably show Yes/No buttons, clicking it opens
+the app's **🧾 Follow-ups** inbox (there's a count badge in the dashboard header),
+where you answer with a tap. Say *"Not yet"* and it comes back later; resolve it and
+it disappears.
+
+> Follow-ups **wait out a focus lock**: while you're in Lock In or repaying a
+> Leisure Loan, nothing nags — the moment the lock ends, any due follow-up resumes.
+> And "email someone" only tracks *your* action and *your* answer — the app never
+> sends or reads real email.
+
+## 10. Quick notes & chores — capture anything, fast
+
+Not everything is a Goal. The **📝 Notes** button (dashboard header) opens a
+lightweight pad you can dump anything into — it stays out of the way and costs
+nothing to keep open.
+
+**Classify with "/".** Start a line with a slash to tell the app what it is (a
+little menu pops up as you type):
+
+- **`/plan …`** — a real project. Processing it opens **Quick Capture** pre-filled,
+  so the AI can break it into milestones and tasks.
+- **`/chore …`** — a one-off errand. Becomes a reminder.
+- **`/daily …`** — a habit. Becomes a **daily chore** that comes back every day.
+- **no slash** — just a plain note, kept in the list.
+
+**Process when you're ready (the boundary).** Classified notes pile up; click
+**Process (N)** to review them. Tick the chore/daily items (or **Select all**) and
+**Process selected** to create them all at once — one action instead of many. Plan
+notes get an **Analyze →** button that opens Quick Capture one at a time. Anything
+you don't want, dismiss.
+
+**Chores tab.** Switch to **Chores** to manage them:
+
+- Daily chores show a checkbox — tick it when done; it greys out and **comes back
+  tomorrow**. Give one an optional **time of day** and it only starts nudging then.
+- One-off chores have a **Done** button that finishes them.
+- **Pause/Resume**, **Edit** (title / time / type), or delete a chore any time.
+
+Chore reminders behave like the task ones: they nudge you even while you work on
+something else, and **go quiet during a focus lock** (§7 / §8), resuming after.
+
+## 11. Insights, smart queue, reminders & backup
 
 The app quietly records a lot — completions, time, estimate accuracy, a ledger —
 and this is where you actually *see* it and act on it.
@@ -190,7 +296,7 @@ and this is where you actually *see* it and act on it.
   current/best streak.
 - **Time economy** — your **Time Debt** and **Guilt-Free Bank** totals, each with
   a control to draw it back down: **Repay** debt or **Spend** bank minutes (both
-  clamp to what you actually have). In **Unga Bunga** tone the Bank stays locked,
+  clamp to what you actually have). In **Lock In** tone the Bank stays locked,
   so its spend control is hidden — the streak is the reward (see §7).
 - **Estimate accuracy** — for each Effort/Impact quadrant, how your actual times
   compare to your estimates (e.g. "High effort / High impact runs 1.4× your
@@ -245,7 +351,7 @@ forward. So these can fire even after you close the window, the app now lives in
 - **Restore backup…** — pick a previously-exported folder; after a confirmation it
   backs up your current files, swaps in the backup, and **restarts** the app.
 
-## 9. Where your data lives, and how to change it
+## 12. Where your data lives, and how to change it
 
 Two files, both under:
 
@@ -273,7 +379,7 @@ risk tolerance): close the app, open `user_profile.json`, edit the
 ```
 
 `tone_preference` accepts `"encouraging"` (default) or `"unga_bunga"` (see §7).
-`notifications_enabled` toggles the due/overdue reminders (see §8) — you can flip
+`notifications_enabled` toggles the due/overdue reminders (see §11) — you can flip
 it here or from the Insights screen.
 
 Don't hand-edit `time_economy`, `estimation_calibration`, `streaks`, or
@@ -286,7 +392,7 @@ happened.
 `task-control-desktop` folder above. It gets recreated with defaults the
 next time you launch.
 
-## 10. Example goal, for testing the whole system
+## 13. Example goal, for testing the whole system
 
 A seed script populates one realistic Goal so you can test the full loop
 without hand-building data first:
@@ -322,7 +428,7 @@ of duplicating.
    you should see both entries from steps 2 and 3, plus the updated running
    totals.
 
-## 11. AI planning (Ollama) — wired on the backend, not yet in the UI
+## 14. AI planning (Ollama) — wired on the backend, not yet in the UI
 
 `electron/services/AI_Service.js` and the `ai:generateMilestonePlan` IPC
 channel can turn a "Big Vague Goal" into a full Milestone/Task breakdown,
@@ -339,7 +445,7 @@ ollama pull llama3
 Wiring this to a "Generate with AI" button on the New Goal screen is a
 reasonable next step if you want it.
 
-## 12. Troubleshooting
+## 15. Troubleshooting
 
 - **`Electron failed to install correctly`** — the Electron binary download
   during `npm install` can land corrupted on restrictive networks. Delete

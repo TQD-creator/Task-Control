@@ -47,12 +47,31 @@ except the optional AI/web-guide calls you explicitly trigger.
   structured Milestone/Task breakdown via a local **Ollama** model.
 - **Almighty Guide** *(optional)* — a live-web, step-by-step how-to for any task,
   built from a **Tavily** search pipeline.
-- **Unga Bunga mode** *(opt-in tone)* — inverts the soft defaults for an
-  avoidant stretch: confrontational timer prompts, a defense-mechanism picker
-  instead of a free-text excuse box, a streak-only reward (the Bank locks), a
-  post-overrun **punishment menu**, a **single-task lockdown** that hides
-  everything else, and a **"Tanking Boredom"** resistance timer. See
+- **Prep phase & Follow-ups** — a sympathetic assistant that helps you *start* and
+  *finish*. **Prepare** a task (tools/materials, a get-ready checklist, a "what
+  you've done" note — with optional **AI-suggested** prep from the local model),
+  and let the app track the **loose ends** it leaves behind: submit-by-a-deadline
+  and email-someone-then-wait-for-a-reply **follow-ups** that nudge you (even while
+  you work other tasks), **defer during a focus lock**, and repeat until you answer
+  them in the in-app inbox. See [desktop-app/USER_GUIDE.md](desktop-app/USER_GUIDE.md) §9.
+- **Quick Notes & Chores** — a low-friction note pad you can open anytime. Type
+  **`/`** to classify a line — **`/plan`** routes it into Quick Capture, **`/chore`**
+  becomes a one-off reminder, **`/daily`** a repeating daily chore — and a **batch
+  "process"** step (with **Select all**) clears the inbox in one action. Daily
+  chores reset each day, take an optional time, and (like everything) stay silent
+  during a focus lock. See [desktop-app/USER_GUIDE.md](desktop-app/USER_GUIDE.md) §10.
+- **Lock In mode** *(opt-in tone, formerly "Unga Bunga")* — inverts the soft
+  defaults for an avoidant stretch: confrontational timer prompts, a
+  defense-mechanism picker instead of a free-text excuse box, a streak-only reward
+  (the Bank locks), a post-overrun **punishment menu**, a **single-task lockdown**
+  that hides everything else, and a **"Tanking Boredom"** resistance timer. See
   [desktop-app/USER_GUIDE.md](desktop-app/USER_GUIDE.md) §7.
+- **Leisure Loan** — borrow play time now and repay it as a **forced focus lock at
+  1.25× interest** right after. A strict commitment device that completes the
+  time-economy (leisure *earned* / focus *owed* / leisure *borrowed*): unlocked by
+  a 3-day streak, capped once per day (twice when consistent), and impossible to
+  dodge by quitting the app. See
+  [desktop-app/USER_GUIDE.md](desktop-app/USER_GUIDE.md) §8.
 
 ---
 

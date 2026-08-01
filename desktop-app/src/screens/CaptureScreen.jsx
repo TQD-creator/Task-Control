@@ -7,8 +7,8 @@ import React, { useState } from 'react';
 
 const CATEGORIES = ['Self-Improvement', 'Creative', 'Project Idea'];
 
-export default function CaptureScreen({ onAnalyzed, onCancel }) {
-  const [rawText, setRawText] = useState('');
+export default function CaptureScreen({ onAnalyzed, onCancel, initialText = '' }) {
+  const [rawText, setRawText] = useState(initialText);
   const [category, setCategory] = useState(CATEGORIES[0]);
   const [customCategory, setCustomCategory] = useState('');
   const [useCustom, setUseCustom] = useState(false);

@@ -20,6 +20,20 @@ function generateId() {
   });
 }
 
+function isoInMinutes(minutes) {
+  return new Date(Date.now() + minutes * 60000).toISOString();
+}
+
+// --- Leisure Loan tuning (borrow play now, repay as forced focus) ----------
+// A strict commitment device: leisure is priced and gated, never open-ended.
+// All knobs live here so the gate/scaling is easy to tune.
+const LOAN_MIN_STREAK = 3; // days of "good behavior" needed to unlock at all
+const LOAN_CONSISTENT_STREAK = 7; // days that raise the cap and grant a 2nd daily use
+const LOAN_BASE_MAX_MINUTES = 20; // borrow cap below the consistency threshold
+const LOAN_BOOST_MAX_MINUTES = 30; // borrow cap once consistent
+const LOAN_INTEREST = 1.25; // repay = ceil(borrowed * interest), paid as forced focus
+const LOAN_PREP_MINUTES = 5; // max "get your tools ready" window before repayment
+
 function defaultProfile() {
   const timestamp = nowIso();
   return {
@@ -52,10 +66,16 @@ function defaultProfile() {
       last_completed_date: null,
     },
     // Computed UI state for the single-task lockdown (Unga Bunga mode). Not
-    // hand-editable. reason: 'manual' (user toggled "Go Unga Bunga") or
-    // 'penalty' (a dopamine-chasing overrun forced it); a penalty lock releases
-    // on the next day (see normalizeProfile). task_id null = still needs a pick.
-    focus_lock: { active: false, task_id: null, reason: null, locked_on: null },
+    // hand-editable. reason: 'manual' (user toggled "Go Unga Bunga"),
+    // 'penalty' (a dopamine-chasing overrun forced it), or 'leisure_loan' (a
+    // Leisure Loan repayment). A penalty lock releases the next day; a
+    // leisure_loan lock releases at expires_at (see normalizeProfile). task_id
+    // null = still needs a pick.
+    focus_lock: { active: false, task_id: null, reason: null, locked_on: null, expires_at: null },
+    // Leisure Loan: borrow play time now, repay as forced focus (1.25x) after.
+    // Computed state — don't hand-edit. `active` holds an in-progress loan; the
+    // per-day counters reset on a new day (see normalizeLeisureLoan).
+    leisure_loan: { date: null, uses_today: 0, active: null },
     big_vague_goals: [],
   };
 }
@@ -66,7 +86,10 @@ function defaultProfile() {
 // date would advance, the lock is simply cleared here.
 function normalizeProfile(profile) {
   if (!profile.focus_lock || typeof profile.focus_lock !== 'object') {
-    profile.focus_lock = { active: false, task_id: null, reason: null, locked_on: null };
+    profile.focus_lock = { active: false, task_id: null, reason: null, locked_on: null, expires_at: null };
+  } else if (profile.focus_lock.expires_at === undefined) {
+    // Backfill the timed-lock field on locks written before Leisure Loan.
+    profile.focus_lock.expires_at = null;
   }
   // Backfill the reminders flag for profiles written before Theme 4 landed;
   // default on so existing users start getting due/overdue nudges.
@@ -75,7 +98,48 @@ function normalizeProfile(profile) {
   }
   const lock = profile.focus_lock;
   if (lock.active && lock.reason === 'penalty' && lock.locked_on && lock.locked_on < today()) {
-    profile.focus_lock = { active: false, task_id: null, reason: null, locked_on: null };
+    profile.focus_lock = { active: false, task_id: null, reason: null, locked_on: null, expires_at: null };
+  }
+  normalizeLeisureLoan(profile);
+  return profile;
+}
+
+function ensureLeisureLoan(profile) {
+  if (!profile.leisure_loan || typeof profile.leisure_loan !== 'object') {
+    profile.leisure_loan = { date: null, uses_today: 0, active: null };
+  }
+  return profile.leisure_loan;
+}
+
+// Runs on every load. Three jobs, all keyed off wall-clock timestamps so no
+// background timer is needed (mirrors the penalty-lock day-clear above):
+//   1. Daily reset  — the per-day use counter rolls over on a new day.
+//   2. Escape-proof — a play/prep window that fully elapsed with the app closed
+//      arms the repayment lock on reopen, so quitting can't dodge the debt.
+//   3. Timed release — an expired leisure_loan lock is cleared and finalized.
+function normalizeLeisureLoan(profile) {
+  const loan = ensureLeisureLoan(profile);
+  const now = nowIso();
+
+  if (loan.date && loan.date < today()) {
+    loan.uses_today = 0;
+    loan.date = today();
+  }
+
+  const active = loan.active;
+  if (active && active.phase !== 'repay') {
+    const windowEnd = active.phase === 'prep' ? active.prep_ends_at : active.play_ends_at;
+    if (windowEnd && windowEnd <= now) {
+      active.phase = 'repay';
+      const expiresAt = isoInMinutes(active.repay_minutes);
+      active.repay_ends_at = expiresAt;
+      setFocusLock(profile, active.task_id ?? null, 'leisure_loan', expiresAt);
+    }
+  }
+
+  const lock = profile.focus_lock;
+  if (lock && lock.active && lock.reason === 'leisure_loan' && lock.expires_at && lock.expires_at <= now) {
+    finishLeisureLoan(profile);
   }
   return profile;
 }
@@ -94,9 +158,16 @@ function loadProfile(profilePath) {
   return normalizeProfile(JSON.parse(raw));
 }
 
+// ATOMIC write, same pattern as db/database.js writeNow(). A plain in-place
+// writeFileSync truncates the file first, so an interrupted write — or a reader
+// that lands mid-write — sees half a JSON document. rename() is atomic on the
+// same filesystem, so the profile on disk is always either the old one or the
+// new one, never a fragment.
 function saveProfile(profilePath, profile) {
   profile.updated_at = nowIso();
-  fs.writeFileSync(profilePath, JSON.stringify(profile, null, 2));
+  const tmp = `${profilePath}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(profile, null, 2));
+  fs.renameSync(tmp, profilePath);
   return profile;
 }
 
@@ -240,20 +311,144 @@ function setNotificationsEnabled(profile, enabled) {
   return profile;
 }
 
-// reason: 'manual' (Go Unga Bunga toggle) | 'penalty' (dopamine overrun).
-// taskId null means "locked but no task chosen yet" -> the UI shows the picker.
-function setFocusLock(profile, taskId = null, reason = 'manual') {
+// reason: 'manual' (Go Unga Bunga toggle) | 'penalty' (dopamine overrun) |
+// 'leisure_loan' (repayment of borrowed play). taskId null means "locked but no
+// task chosen yet" -> the UI shows the picker. expiresAt (ISO) time-boxes the
+// lock — only set for 'leisure_loan'; null locks stay until manually cleared or
+// the next-day penalty sweep.
+function setFocusLock(profile, taskId = null, reason = 'manual', expiresAt = null) {
   profile.focus_lock = {
     active: true,
     task_id: taskId ?? null,
     reason,
     locked_on: today(),
+    expires_at: expiresAt ?? null,
   };
   return profile;
 }
 
 function clearFocusLock(profile) {
-  profile.focus_lock = { active: false, task_id: null, reason: null, locked_on: null };
+  profile.focus_lock = { active: false, task_id: null, reason: null, locked_on: null, expires_at: null };
+  return profile;
+}
+
+// ---------------------------------------------------------------------------
+// Leisure Loan: borrow play time now, repay as forced focus (1.25x) after
+// ---------------------------------------------------------------------------
+
+// Pure read for the UI: whether the user may borrow right now, and the current
+// limits. Gated on the streak ("good behavior"); the cap and daily max scale up
+// once the streak is "consistent".
+function leisureLoanStatus(profile) {
+  const streak = profile.streaks?.current_streak_days || 0;
+  const consistent = streak >= LOAN_CONSISTENT_STREAK;
+  const capMinutes = consistent ? LOAN_BOOST_MAX_MINUTES : LOAN_BASE_MAX_MINUTES;
+  const maxUses = consistent ? 2 : 1;
+  const loan = profile.leisure_loan || { date: null, uses_today: 0, active: null };
+  const usesToday = loan.date === today() ? loan.uses_today || 0 : 0;
+  const lockActive = !!profile.focus_lock?.active;
+
+  let eligible = true;
+  let reason = null;
+  if (streak < LOAN_MIN_STREAK) { eligible = false; reason = 'streak'; }
+  else if (loan.active) { eligible = false; reason = 'in_progress'; }
+  else if (lockActive) { eligible = false; reason = 'locked'; }
+  else if (usesToday >= maxUses) { eligible = false; reason = 'used_up'; }
+
+  return {
+    eligible,
+    reason,
+    streak,
+    min_streak: LOAN_MIN_STREAK,
+    consistent_streak: LOAN_CONSISTENT_STREAK,
+    cap_minutes: capMinutes,
+    max_uses: maxUses,
+    uses_today: usesToday,
+    interest: LOAN_INTEREST,
+    prep_minutes: LOAN_PREP_MINUTES,
+    active: loan.active || null,
+  };
+}
+
+// Open a loan: hand over `minutes` of sanctioned play (phase 'play', counts
+// down to play_ends_at) and record the repayment owed. Refuses when not
+// eligible. Returns { ok, reason?, profile }.
+function startLeisureLoan(profile, { minutes, taskId = null } = {}) {
+  ensureLeisureLoan(profile);
+  const status = leisureLoanStatus(profile);
+  if (!status.eligible) return { ok: false, reason: status.reason, profile };
+
+  const n = Math.max(1, Math.min(Math.floor(minutes || 0), status.cap_minutes));
+  const repayMinutes = Math.ceil(n * LOAN_INTEREST);
+  const startedAt = nowIso();
+
+  if (profile.leisure_loan.date !== today()) {
+    profile.leisure_loan.date = today();
+    profile.leisure_loan.uses_today = 0;
+  }
+  profile.leisure_loan.date = today();
+  profile.leisure_loan.uses_today += 1;
+  profile.leisure_loan.active = {
+    phase: 'play',
+    task_id: taskId ?? null,
+    borrowed_minutes: n,
+    started_at: startedAt,
+    play_ends_at: isoInMinutes(n),
+    prep_ends_at: null,
+    repay_minutes: repayMinutes,
+    repay_ends_at: null,
+  };
+  profile.time_economy.ledger.push({
+    date: startedAt,
+    task_id: taskId ?? null,
+    type: 'leisure_loan',
+    event: 'borrow',
+    borrowed_minutes: n,
+    repay_minutes: repayMinutes,
+  });
+  return { ok: true, profile };
+}
+
+// Play -> prep: the "get your tools ready" buffer (capped at LOAN_PREP_MINUTES).
+function beginLeisurePrep(profile) {
+  const loan = profile.leisure_loan?.active;
+  if (!loan || loan.phase !== 'play') return { ok: false, profile };
+  loan.phase = 'prep';
+  loan.prep_ends_at = isoInMinutes(LOAN_PREP_MINUTES);
+  return { ok: true, profile };
+}
+
+// -> repay: arm the timed focus lock for the repayment window. Callable from
+// play (skip prep) or prep. The lock takes over the whole app until expires_at.
+function beginLeisureRepay(profile) {
+  const loan = profile.leisure_loan?.active;
+  if (!loan || loan.phase === 'repay') return { ok: false, profile };
+  loan.phase = 'repay';
+  const expiresAt = isoInMinutes(loan.repay_minutes);
+  loan.repay_ends_at = expiresAt;
+  setFocusLock(profile, loan.task_id ?? null, 'leisure_loan', expiresAt);
+  return { ok: true, profile };
+}
+
+// Close out a loan: log the repayment and release the lock (only if it's the
+// leisure_loan lock). Called when the repay clock expires, on the load-time
+// sweep, or when the repaid task is completed early.
+function finishLeisureLoan(profile) {
+  const loan = profile.leisure_loan?.active;
+  if (loan) {
+    profile.time_economy.ledger.push({
+      date: nowIso(),
+      task_id: loan.task_id ?? null,
+      type: 'leisure_loan',
+      event: 'repaid',
+      borrowed_minutes: loan.borrowed_minutes,
+      repay_minutes: loan.repay_minutes,
+    });
+    profile.leisure_loan.active = null;
+  }
+  if (profile.focus_lock?.reason === 'leisure_loan') {
+    clearFocusLock(profile);
+  }
   return profile;
 }
 
@@ -317,4 +512,9 @@ module.exports = {
   logBoredom,
   logPunishment,
   servePunishment,
+  leisureLoanStatus,
+  startLeisureLoan,
+  beginLeisurePrep,
+  beginLeisureRepay,
+  finishLeisureLoan,
 };

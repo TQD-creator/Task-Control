@@ -70,6 +70,33 @@ const CAPTURE_FORMAT = {
   },
 };
 
+// Prep suggestion output: tools/materials to gather, a short prep checklist,
+// and any follow-ups (loose ends) the task implies. Follow-up kinds mirror
+// followUpEngine: 'submit' (hand something in by a deadline), 'notify_wait'
+// (contact a person and wait for their reply), 'custom' (any other loose end).
+const PREP_FORMAT = {
+  type: 'object',
+  required: ['tools', 'checklist', 'followups'],
+  additionalProperties: false,
+  properties: {
+    tools: { type: 'array', items: { type: 'string' } },
+    checklist: { type: 'array', items: { type: 'string' } },
+    followups: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['kind', 'label', 'question'],
+        additionalProperties: false,
+        properties: {
+          kind: { type: 'string', enum: ['submit', 'notify_wait', 'custom'] },
+          label: { type: 'string' },
+          question: { type: 'string' },
+        },
+      },
+    },
+  },
+};
+
 function describeCalibration(calibration) {
   return Object.entries(calibration)
     .filter(([, bucket]) => bucket.sample_count > 0)
@@ -224,4 +251,56 @@ async function analyzeCapture(rawText, category, profile, options = {}) {
   return parseJsonResponse(content);
 }
 
-module.exports = { buildSystemPrompt, generateMilestonePlan, analyzeCapture };
+// "Prepare to start" prompt: given one task (+ its milestone/goal context),
+// propose what to gather, a short get-ready checklist, and the loose ends the
+// task implies. The model only PROPOSES — the user approves in the Prep screen,
+// and the deterministic engine owns any reminder that gets created.
+function buildPrepSystemPrompt() {
+  return `You are a preparation assistant embedded in a personal task-control app.
+Given ONE task the user is about to start, help them get ready. Return three things:
+
+- "tools": concrete tools, files, accounts, or materials to gather first (0-6 items).
+- "checklist": a short ordered list of small get-ready steps (0-6 items).
+- "followups": the loose ends this task will leave behind that need chasing later.
+  Only include ones that genuinely apply — an empty array is fine. Each has:
+    - "kind": "submit" (something must be handed in / uploaded by a deadline),
+              "notify_wait" (you must contact a specific person and wait for their
+              reply, e.g. email a professor for approval), or "custom" (any other
+              loose end to confirm later).
+    - "label": short imperative, e.g. "Submit the assignment on the portal".
+    - "question": the yes/no the app should later ask, e.g. "Did you submit it?"
+      or for notify_wait the REPLY-stage question, e.g. "Has the professor replied?".
+
+Respond with ONLY valid JSON matching this shape, no prose, no markdown fences:
+{ "tools": [string], "checklist": [string],
+  "followups": [ { "kind": "submit"|"notify_wait"|"custom", "label": string, "question": string } ] }`;
+}
+
+function buildPrepUserPrompt(task, ctx) {
+  const lines = [
+    `Task: "${task.title}"`,
+    task.action ? `Action: ${task.action}` : null,
+    task.artifact ? `Artifact (what done looks like): ${task.artifact}` : null,
+    ctx?.milestoneTitle ? `Milestone: ${ctx.milestoneTitle}` : null,
+    ctx?.goalTitle ? `Goal: ${ctx.goalTitle}` : null,
+    ctx?.goalCategory ? `Category: ${ctx.goalCategory}` : null,
+  ].filter(Boolean);
+  return `${lines.join('\n')}\n\nSuggest prep tools, a checklist, and any follow-ups as instructed.`;
+}
+
+// Returns { tools: [string], checklist: [string], followups: [{ kind, label,
+// question }] }. Advisory only — the renderer lets the user edit/approve before
+// anything is saved. Throws (from ollamaClient) if Ollama is unreachable; the
+// caller keeps the Prep screen usable manually.
+async function generatePrep(task, ctx, profile, options = {}) {
+  const content = await callOllamaChat(
+    [
+      { role: 'system', content: buildPrepSystemPrompt() },
+      { role: 'user', content: buildPrepUserPrompt(task, ctx) },
+    ],
+    { ...options, format: PREP_FORMAT }
+  );
+  return parseJsonResponse(content);
+}
+
+module.exports = { buildSystemPrompt, generateMilestonePlan, analyzeCapture, generatePrep };

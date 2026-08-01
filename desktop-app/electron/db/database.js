@@ -46,6 +46,8 @@ function runMigrations() {
   // so "Total Overall Time" survives restarts; the in-progress session lives
   // only in the main-process timerService until it's flushed here.
   ensureColumn('tasks', 'total_seconds', 'INTEGER NOT NULL DEFAULT 0');
+  // Serialized prep spec (tools / checklist / notes) for the preparation phase.
+  ensureColumn('tasks', 'prep_json', 'TEXT');
 }
 
 function ensureColumn(table, column, definition) {
@@ -535,6 +537,190 @@ function shiftMilestoneTimeline(milestoneId, deltaDays) {
   return getMilestonesByGoal(milestone.goal_id);
 }
 
+// ---------------------------------------------------------------------------
+// FOLLOW-UPS (loose ends a task leaves behind: submit it, email + await reply)
+// ---------------------------------------------------------------------------
+
+function createFollowUp({
+  taskId,
+  kind = 'custom',
+  label,
+  question = null,
+  dueDate = null,
+  repeatMinutes = 120,
+  nextNudgeAt = null,
+  state = 'pending',
+}) {
+  run(
+    `INSERT INTO follow_ups (task_id, kind, label, question, state, due_date, repeat_minutes, next_nudge_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [taskId, kind, label, question, state, dueDate, repeatMinutes, nextNudgeAt]
+  );
+  const id = lastInsertRowId();
+  persist();
+  return getFollowUpById(id);
+}
+
+function getFollowUpById(id) {
+  return get(`SELECT * FROM follow_ups WHERE id = ?`, [id]);
+}
+
+function getFollowUpsByTask(taskId) {
+  return all(`SELECT * FROM follow_ups WHERE task_id = ? ORDER BY created_at ASC`, [taskId]);
+}
+
+// All unresolved follow-ups, decorated with their task/goal titles, for the
+// in-app inbox. NULL next_nudge_at (not yet scheduled) sorts last.
+function getPendingFollowUps() {
+  return all(
+    `SELECT f.*, t.title AS task_title, g.title AS goal_title
+     FROM follow_ups f
+     JOIN tasks t ON t.id = f.task_id
+     JOIN milestones m ON m.id = t.milestone_id
+     JOIN goals g ON g.id = m.goal_id
+     WHERE f.state != 'resolved'
+     ORDER BY (f.next_nudge_at IS NULL), f.next_nudge_at ASC`
+  );
+}
+
+// Unresolved follow-ups whose nudge time has arrived — the reminder loop fires
+// these (unless a focus lock is active; see reminderService).
+function getDueFollowUps(nowIso) {
+  return all(
+    `SELECT f.*, t.title AS task_title
+     FROM follow_ups f
+     JOIN tasks t ON t.id = f.task_id
+     WHERE f.state != 'resolved'
+       AND f.next_nudge_at IS NOT NULL
+       AND f.next_nudge_at <= ?
+     ORDER BY f.next_nudge_at ASC`,
+    [nowIso]
+  );
+}
+
+function updateFollowUp(id, fields) {
+  const columns = Object.keys(fields);
+  if (columns.length === 0) return getFollowUpById(id);
+  const setClause = columns.map((c) => `${c} = ?`).join(', ');
+  run(`UPDATE follow_ups SET ${setClause} WHERE id = ?`, [...columns.map((c) => fields[c]), id]);
+  persist();
+  return getFollowUpById(id);
+}
+
+function deleteFollowUp(id) {
+  run(`DELETE FROM follow_ups WHERE id = ?`, [id]);
+  persist();
+}
+
+// ---------------------------------------------------------------------------
+// NOTES (Quick Note pad) + CHORES (one-off / daily reminders)
+// ---------------------------------------------------------------------------
+
+function createNote({ text, kind = 'note' }) {
+  run(`INSERT INTO notes (text, kind) VALUES (?, ?)`, [text, kind]);
+  const id = lastInsertRowId();
+  persist();
+  return getNoteById(id);
+}
+
+function getNoteById(id) {
+  return get(`SELECT * FROM notes WHERE id = ?`, [id]);
+}
+
+// All non-dismissed notes, newest first (the pad).
+function getNotes() {
+  return all(`SELECT * FROM notes WHERE status != 'dismissed' ORDER BY created_at DESC`);
+}
+
+// The process queue: still-open notes that were classified into an actionable kind.
+function getOpenClassifiedNotes() {
+  return all(
+    `SELECT * FROM notes
+     WHERE status = 'open' AND kind IN ('plan', 'chore', 'daily')
+     ORDER BY created_at ASC`
+  );
+}
+
+function updateNote(id, fields) {
+  const columns = Object.keys(fields);
+  if (columns.length === 0) return getNoteById(id);
+  const setClause = columns.map((c) => `${c} = ?`).join(', ');
+  run(`UPDATE notes SET ${setClause} WHERE id = ?`, [...columns.map((c) => fields[c]), id]);
+  persist();
+  return getNoteById(id);
+}
+
+function deleteNote(id) {
+  run(`DELETE FROM notes WHERE id = ?`, [id]);
+  persist();
+}
+
+function createChore({ title, recurrence = 'daily', timeOfDay = null, dueDate = null, sourceNoteId = null }) {
+  run(
+    `INSERT INTO chores (title, recurrence, time_of_day, due_date, source_note_id)
+     VALUES (?, ?, ?, ?, ?)`,
+    [title, recurrence, timeOfDay, dueDate, sourceNoteId]
+  );
+  const id = lastInsertRowId();
+  persist();
+  return getChoreById(id);
+}
+
+function getChoreById(id) {
+  return get(`SELECT * FROM chores WHERE id = ?`, [id]);
+}
+
+function getChores() {
+  return all(`SELECT * FROM chores ORDER BY active DESC, recurrence ASC, title ASC`);
+}
+
+function updateChore(id, fields) {
+  const columns = Object.keys(fields);
+  if (columns.length === 0) return getChoreById(id);
+  const setClause = columns.map((c) => `${c} = ?`).join(', ');
+  run(`UPDATE chores SET ${setClause} WHERE id = ?`, [...columns.map((c) => fields[c]), id]);
+  persist();
+  return getChoreById(id);
+}
+
+// Mark a chore done for today. A daily chore just records the date (it resets
+// tomorrow); a one-off chore is finished, so it's deactivated.
+function markChoreDone(id) {
+  const chore = getChoreById(id);
+  if (!chore) return null;
+  const todayStr = new Date().toISOString().slice(0, 10);
+  if (chore.recurrence === 'once') {
+    run(`UPDATE chores SET last_done_date = ?, active = 0 WHERE id = ?`, [todayStr, id]);
+  } else {
+    run(`UPDATE chores SET last_done_date = ? WHERE id = ?`, [todayStr, id]);
+  }
+  persist();
+  return getChoreById(id);
+}
+
+function deleteChore(id) {
+  run(`DELETE FROM chores WHERE id = ?`, [id]);
+  persist();
+}
+
+// Chores that should nudge now: active, past any time-of-day gate, and not yet
+// satisfied — a daily chore not done today, or a one-off not done whose date has
+// arrived (a one-off with no date is due immediately). nowHHMM is local 'HH:MM'.
+function getDueChores(todayStr, nowHHMM) {
+  return all(
+    `SELECT id, title, recurrence, time_of_day, due_date, last_done_date
+     FROM chores
+     WHERE active = 1
+       AND (time_of_day IS NULL OR time_of_day <= ?)
+       AND (
+         (recurrence = 'daily' AND (last_done_date IS NULL OR last_done_date < ?))
+         OR
+         (recurrence = 'once' AND last_done_date IS NULL AND (due_date IS NULL OR due_date <= ?))
+       )`,
+    [nowHHMM, todayStr, todayStr]
+  );
+}
+
 module.exports = {
   initDatabase,
   persist,
@@ -562,4 +748,24 @@ module.exports = {
   addTaskTime,
   shiftTaskTimeline,
   shiftMilestoneTimeline,
+  createFollowUp,
+  getFollowUpById,
+  getFollowUpsByTask,
+  getPendingFollowUps,
+  getDueFollowUps,
+  updateFollowUp,
+  deleteFollowUp,
+  createNote,
+  getNoteById,
+  getNotes,
+  getOpenClassifiedNotes,
+  updateNote,
+  deleteNote,
+  createChore,
+  getChoreById,
+  getChores,
+  updateChore,
+  markChoreDone,
+  deleteChore,
+  getDueChores,
 };

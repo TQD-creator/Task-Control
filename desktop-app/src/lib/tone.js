@@ -29,6 +29,13 @@ const COPY = {
     debtBody: 'A quick note helps future estimates. What happened?',
     debtSubmit: 'Add to Time Debt',
     boredom: 'Tanking Boredom',
+    leisureHeading: 'Borrow some play time',
+    leisureBody: "Take a break now — you'll repay it as focused work right after, plus a little interest.",
+    leisurePlayHeading: 'Enjoy your break',
+    leisurePrepHeading: 'Get your tools ready',
+    leisureStart: 'Start focus now',
+    prepHeading: 'Get ready',
+    prepBody: 'A few minutes setting up now makes starting easy. Gather what you need and note where you left off.',
   },
   unga_bunga: {
     pauseHeading: 'Stand steady.',
@@ -45,6 +52,14 @@ const COPY = {
       'This overrun was a defense mechanism, not bad luck. Name the direction your mind went — so you can map exactly which demons pull you away.',
     debtSubmit: 'Log it',
     boredom: 'Tanking Boredom',
+    leisureHeading: 'Take the advance. The bill comes due.',
+    leisureBody:
+      'Play now if you must — but you will repay every borrowed minute as forced focus, with interest. There is no escape once the clock starts.',
+    leisurePlayHeading: 'Your borrowed time',
+    leisurePrepHeading: 'Prepare. The lock is coming.',
+    leisureStart: 'Face the work',
+    prepHeading: 'Prepare to execute',
+    prepBody: 'Clear the runway. Get every tool in front of you so there is no excuse to stall when you start.',
   },
 };
 

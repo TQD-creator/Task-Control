@@ -34,6 +34,8 @@ contextBridge.exposeInMainWorld('api', {
   data: {
     export: () => ipcRenderer.invoke('data:export'),
     import: () => ipcRenderer.invoke('data:import'),
+    sendToMirror: () => ipcRenderer.invoke('data:sendToMirror'),
+    revealPath: (target) => ipcRenderer.invoke('data:revealPath', target),
   },
   timeline: {
     shiftTask: (taskId, deltaDays) => ipcRenderer.invoke('timeline:shiftTask', taskId, deltaDays),
@@ -49,6 +51,12 @@ contextBridge.exposeInMainWorld('api', {
     servePunishment: (punishment) => ipcRenderer.invoke('profile:servePunishment', punishment),
     repayDebt: (minutes, note) => ipcRenderer.invoke('profile:repayTimeDebt', minutes, note),
     spendBank: (minutes, note) => ipcRenderer.invoke('profile:spendBank', minutes, note),
+    // Leisure Loan: borrow play now, repay as forced focus (1.25x) after.
+    leisureStatus: () => ipcRenderer.invoke('leisure:status'),
+    leisureStart: (minutes, taskId) => ipcRenderer.invoke('leisure:start', minutes, taskId),
+    leisureBeginPrep: () => ipcRenderer.invoke('leisure:beginPrep'),
+    leisureBeginRepay: () => ipcRenderer.invoke('leisure:beginRepay'),
+    leisureFinish: () => ipcRenderer.invoke('leisure:finish'),
     // Subscribe to tone changes (Unga Bunga toggled); returns an unsubscribe fn.
     onToneChange: (callback) => {
       const handler = (_e, tone) => callback(tone);
@@ -59,6 +67,28 @@ contextBridge.exposeInMainWorld('api', {
   ai: {
     generateMilestonePlan: (bigVagueGoal) => ipcRenderer.invoke('ai:generateMilestonePlan', bigVagueGoal),
     analyzeCapture: (rawText, category) => ipcRenderer.invoke('ai:analyzeCapture', rawText, category),
+    generatePrep: (taskId) => ipcRenderer.invoke('ai:generatePrep', taskId),
+  },
+  followups: {
+    byTask: (taskId) => ipcRenderer.invoke('followups:byTask', taskId),
+    pending: () => ipcRenderer.invoke('followups:pending'),
+    create: (payload) => ipcRenderer.invoke('followups:create', payload),
+    answer: (id, answer) => ipcRenderer.invoke('followups:answer', id, answer),
+    delete: (id) => ipcRenderer.invoke('followups:delete', id),
+  },
+  notes: {
+    list: () => ipcRenderer.invoke('notes:list'),
+    openQueue: () => ipcRenderer.invoke('notes:openQueue'),
+    create: (payload) => ipcRenderer.invoke('notes:create', payload),
+    update: (id, fields) => ipcRenderer.invoke('notes:update', id, fields),
+    delete: (id) => ipcRenderer.invoke('notes:delete', id),
+  },
+  chores: {
+    list: () => ipcRenderer.invoke('chores:list'),
+    create: (payload) => ipcRenderer.invoke('chores:create', payload),
+    update: (id, fields) => ipcRenderer.invoke('chores:update', id, fields),
+    markDone: (id) => ipcRenderer.invoke('chores:markDone', id),
+    delete: (id) => ipcRenderer.invoke('chores:delete', id),
   },
   settings: {
     hasTavilyKey: () => ipcRenderer.invoke('settings:hasTavilyKey'),
@@ -87,5 +117,12 @@ contextBridge.exposeInMainWorld('api', {
       ipcRenderer.on('timer:state', handler);
       return () => ipcRenderer.removeListener('timer:state', handler);
     },
+  },
+  // Main asks the renderer to switch screens (e.g. a follow-up notification
+  // click → open the Follow-ups inbox). Returns an unsubscribe fn.
+  onNavigate: (callback) => {
+    const handler = (_e, screen) => callback(screen);
+    ipcRenderer.on('main:navigate', handler);
+    return () => ipcRenderer.removeListener('main:navigate', handler);
   },
 });

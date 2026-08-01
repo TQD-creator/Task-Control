@@ -17,6 +17,10 @@ import CaptureReviewScreen from './screens/CaptureReviewScreen.jsx';
 import GuideScreen from './screens/GuideScreen.jsx';
 import FocusLockScreen from './screens/FocusLockScreen.jsx';
 import InsightsScreen from './screens/InsightsScreen.jsx';
+import LeisureLoanScreen from './screens/LeisureLoanScreen.jsx';
+import PrepScreen from './screens/PrepScreen.jsx';
+import FollowUpsInbox from './screens/FollowUpsInbox.jsx';
+import NotesScreen from './screens/NotesScreen.jsx';
 
 export default function App() {
   const [screen, setScreen] = useState({ name: 'dashboard' });
@@ -30,6 +34,15 @@ export default function App() {
   useEffect(() => {
     reloadProfile();
   }, [reloadProfile]);
+
+  // Main can ask us to switch screens (a notification click → the right place).
+  useEffect(() => {
+    return window.api.onNavigate((target) => {
+      if (target === 'followups') setScreen({ name: 'followups' });
+      else if (target === 'chores') setScreen({ name: 'notes', tab: 'chores' });
+      else if (target === 'notes') setScreen({ name: 'notes', tab: 'notes' });
+    });
+  }, []);
 
   const tone = profile?.personalization?.tone_preference ?? 'encouraging';
   const focusLock = profile?.focus_lock;
@@ -61,14 +74,51 @@ export default function App() {
           onCapture={() => setScreen({ name: 'capture' })}
           onOpenGuide={(task) => setScreen({ name: 'guide', taskId: task.id, taskTitle: task.title })}
           onOpenInsights={() => setScreen({ name: 'insights' })}
+          onOpenLeisure={() => setScreen({ name: 'leisure' })}
+          onOpenPrep={(task) => setScreen({ name: 'prep', task })}
+          onOpenFollowups={() => setScreen({ name: 'followups' })}
+          onOpenNotes={() => setScreen({ name: 'notes', tab: 'notes' })}
           tone={tone}
           streaks={profile?.streaks}
           onProfileChanged={reloadProfile}
         />
       )}
 
+      {screen.name === 'prep' && (
+        <PrepScreen
+          task={screen.task}
+          tone={tone}
+          onBack={() => setScreen({ name: 'dashboard' })}
+          onChanged={reloadProfile}
+        />
+      )}
+
+      {screen.name === 'followups' && (
+        <FollowUpsInbox
+          tone={tone}
+          onBack={() => setScreen({ name: 'dashboard' })}
+          onChanged={reloadProfile}
+        />
+      )}
+
+      {screen.name === 'notes' && (
+        <NotesScreen
+          initialTab={screen.tab || 'notes'}
+          onBack={() => setScreen({ name: 'dashboard' })}
+          onOpenPlan={(initialText) => setScreen({ name: 'capture', initialText })}
+        />
+      )}
+
       {screen.name === 'insights' && (
         <InsightsScreen tone={tone} onBack={() => { reloadProfile(); setScreen({ name: 'dashboard' }); }} />
+      )}
+
+      {screen.name === 'leisure' && (
+        <LeisureLoanScreen
+          tone={tone}
+          onChanged={reloadProfile}
+          onExit={() => setScreen({ name: 'dashboard' })}
+        />
       )}
 
       {screen.name === 'newGoal' && (
@@ -102,6 +152,7 @@ export default function App() {
 
       {screen.name === 'capture' && (
         <CaptureScreen
+          initialText={screen.initialText || ''}
           onCancel={() => setScreen({ name: 'dashboard' })}
           onAnalyzed={(analysis) => setScreen({ name: 'captureReview', analysis })}
         />

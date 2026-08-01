@@ -8,15 +8,22 @@ const path = require('path');
 
 const APP_NAME = 'task-control-desktop';
 
-function getUserDataDir() {
+// Generalised over the app name so the Mirror handoff can resolve Mirror's own
+// data directory with the same platform rules, rather than a second copy of
+// this switch living somewhere else.
+function getAppDataDir(appName) {
   switch (process.platform) {
     case 'win32':
-      return path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), APP_NAME);
+      return path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), appName);
     case 'darwin':
-      return path.join(os.homedir(), 'Library', 'Application Support', APP_NAME);
+      return path.join(os.homedir(), 'Library', 'Application Support', appName);
     default:
-      return path.join(process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config'), APP_NAME);
+      return path.join(process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config'), appName);
   }
 }
 
-module.exports = { getUserDataDir };
+function getUserDataDir() {
+  return getAppDataDir(APP_NAME);
+}
+
+module.exports = { getUserDataDir, getAppDataDir };

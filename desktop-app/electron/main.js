@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { app, BrowserWindow, ipcMain, Tray, Menu, dialog, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, Tray, Menu, dialog, nativeImage, shell } = require('electron');
 
 const db = require('./db/database');
 const profileEngine = require('./profile/profileEngine');
@@ -8,8 +8,9 @@ const aiService = require('./services/AI_Service');
 const guideService = require('./services/guideService');
 const timerService = require('./services/timerService');
 const reminderService = require('./services/reminderService');
+const followUpEngine = require('./services/followUpEngine');
 const settings = require('./settings');
-const { getUserDataDir } = require('./paths');
+const { getUserDataDir, getAppDataDir } = require('./paths');
 
 const isDev = process.env.NODE_ENV === 'development';
 
@@ -150,6 +151,15 @@ function broadcastTone(tone) {
   }
 }
 
+// Focus the app and ask the renderer to switch to a screen (used when a
+// follow-up notification is clicked → open the Follow-ups inbox).
+function navigateMain(screen) {
+  showMainWindow();
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) win.webContents.send('main:navigate', screen);
+  }
+}
+
 app.whenReady().then(async () => {
   await db.initDatabase(path.join(getUserDataDir(), 'task_control.db'));
 
@@ -171,12 +181,18 @@ app.whenReady().then(async () => {
   createWindow();
   createTray();
 
-  // Due / overdue task reminders. Gated on the profile flag, re-read each pass
-  // so toggling it in-app takes effect without a restart. A click focuses the app.
+  // Due / overdue task + follow-up reminders. Gated on the profile flag, re-read
+  // each pass so toggling it in-app takes effect without a restart. Deferred
+  // while a focus lock is active (isLocked) so nothing nags during Lock In /
+  // Leisure Loan. A task-reminder click focuses the app; a follow-up click also
+  // routes to the in-app Follow-ups inbox.
   reminderService.start({
     db,
     isEnabled: () => profileEngine.loadProfile(getProfilePath()).personalization?.notifications_enabled !== false,
+    isLocked: () => profileEngine.loadProfile(getProfilePath()).focus_lock?.active === true,
     onActivate: showMainWindow,
+    onFollowUpActivate: () => navigateMain('followups'),
+    onChoreActivate: () => navigateMain('chores'),
   });
 
   app.on('activate', () => {
@@ -289,6 +305,43 @@ function registerIpcHandlers() {
     return profile;
   });
 
+  // Leisure Loan: borrow play time now, repay as forced focus (1.25x) after.
+  // status is a pure read of the gate/limits; the rest mutate + persist. Each
+  // load runs normalizeProfile -> normalizeLeisureLoan, so the daily reset,
+  // escape-proofing, and timed release are enforced on every call.
+  ipcMain.handle('leisure:status', () => {
+    const profile = profileEngine.loadProfile(getProfilePath());
+    return profileEngine.leisureLoanStatus(profile);
+  });
+  ipcMain.handle('leisure:start', (_e, minutes, taskId) => {
+    const profilePath = getProfilePath();
+    const profile = profileEngine.loadProfile(profilePath);
+    const result = profileEngine.startLeisureLoan(profile, { minutes, taskId: taskId ?? null });
+    profileEngine.saveProfile(profilePath, profile);
+    return { ok: result.ok, reason: result.reason ?? null, profile };
+  });
+  ipcMain.handle('leisure:beginPrep', () => {
+    const profilePath = getProfilePath();
+    const profile = profileEngine.loadProfile(profilePath);
+    profileEngine.beginLeisurePrep(profile);
+    profileEngine.saveProfile(profilePath, profile);
+    return profile;
+  });
+  ipcMain.handle('leisure:beginRepay', () => {
+    const profilePath = getProfilePath();
+    const profile = profileEngine.loadProfile(profilePath);
+    profileEngine.beginLeisureRepay(profile);
+    profileEngine.saveProfile(profilePath, profile);
+    return profile;
+  });
+  ipcMain.handle('leisure:finish', () => {
+    const profilePath = getProfilePath();
+    const profile = profileEngine.loadProfile(profilePath);
+    profileEngine.finishLeisureLoan(profile);
+    profileEngine.saveProfile(profilePath, profile);
+    return profile;
+  });
+
   // Toggle due/overdue reminders. reminderService re-reads this each pass.
   ipcMain.handle('profile:setNotifications', (_e, enabled) => {
     const profilePath = getProfilePath();
@@ -333,6 +386,56 @@ function registerIpcHandlers() {
     if (fs.existsSync(dbPath)) fs.copyFileSync(dbPath, path.join(dir, 'task_control.db'));
     if (fs.existsSync(profilePath)) fs.copyFileSync(profilePath, path.join(dir, 'user_profile.json'));
     return { ok: true, dir };
+  });
+
+  // Hand the current data to Mirror (the companion reflection app). Same shape
+  // as data:export, minus the dialog: the destination is fixed so Mirror can
+  // find the snapshot on its own without any cross-process channel between the
+  // two apps. Mirror only ever reads these copies.
+  ipcMain.handle('data:sendToMirror', async () => {
+    try {
+      db.persist({ immediate: true }); // flush the 1.5s debounce before copying
+      const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+      const dir = path.join(getAppDataDir('mirror'), 'snapshots', stamp);
+      fs.mkdirSync(dir, { recursive: true });
+
+      const dbPath = getDbPath();
+      const profilePath = getProfilePath();
+      if (!fs.existsSync(dbPath) || !fs.existsSync(profilePath)) {
+        return { ok: false, error: 'Task Control has no data to send yet.' };
+      }
+      fs.copyFileSync(dbPath, path.join(dir, 'task_control.db'));
+      fs.copyFileSync(profilePath, path.join(dir, 'user_profile.json'));
+      fs.writeFileSync(path.join(dir, 'meta.json'), JSON.stringify({
+        capturedAt: new Date().toISOString(),
+        sourceDir: getUserDataDir(),
+        source: 'task-control',
+      }, null, 2));
+
+      // Launching Mirror is best-effort: it is not packaged, so a configured
+      // path may not exist. The snapshot is already on disk either way, and
+      // Mirror finds it by itself on next start.
+      let launched = false;
+      const mirrorPath = settings.getMirrorPath();
+      if (mirrorPath && fs.existsSync(mirrorPath)) {
+        try {
+          require('child_process').spawn(mirrorPath, [dir], { detached: true, stdio: 'ignore' }).unref();
+          launched = true;
+        } catch {
+          launched = false;
+        }
+      }
+
+      return { ok: true, dir, launched };
+    } catch (error) {
+      return { ok: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('data:revealPath', async (_e, target) => {
+    if (!target || !fs.existsSync(target)) return { ok: false };
+    await shell.openPath(target);
+    return { ok: true };
   });
 
   ipcMain.handle('data:import', async () => {
@@ -385,6 +488,67 @@ function registerIpcHandlers() {
     const profile = profileEngine.loadProfile(getProfilePath());
     return aiService.analyzeCapture(rawText, category, profile);
   });
+
+  // Prep suggestions — the local model proposes tools/checklist + follow-ups
+  // from the task (+ its milestone/goal context). Advisory only: nothing is
+  // saved until the user approves in the Prep screen. Throws propagate to the
+  // renderer, which keeps the screen usable manually if Ollama is down.
+  ipcMain.handle('ai:generatePrep', async (_e, taskId) => {
+    const task = db.getTaskById(taskId);
+    if (!task) throw new Error(`Task ${taskId} not found.`);
+    const milestone = db.getMilestoneById(task.milestone_id);
+    const goal = milestone ? db.getGoalById(milestone.goal_id) : null;
+    const ctx = {
+      goalTitle: goal?.title,
+      goalCategory: goal?.category,
+      milestoneTitle: milestone?.title,
+      stepTitle: task.title,
+      stepAction: task.action,
+      stepArtifact: task.artifact,
+    };
+    const profile = profileEngine.loadProfile(getProfilePath());
+    return aiService.generatePrep(task, ctx, profile);
+  });
+
+  // Follow-ups — the loose ends a task leaves behind. Deterministic CRUD; the
+  // state machine (followUpEngine) computes each transition and nudge time.
+  ipcMain.handle('followups:byTask', (_e, taskId) => db.getFollowUpsByTask(taskId));
+  ipcMain.handle('followups:pending', () => db.getPendingFollowUps());
+  ipcMain.handle('followups:create', (_e, payload = {}) => {
+    const { taskId, kind = 'custom', label, question = null, dueDate = null, repeatMinutes = 120 } = payload;
+    const nextNudgeAt = followUpEngine.initialNudgeAt({ kind, dueDate });
+    return db.createFollowUp({ taskId, kind, label, question, dueDate, repeatMinutes, nextNudgeAt });
+  });
+  ipcMain.handle('followups:answer', (_e, id, answer) => {
+    const fu = db.getFollowUpById(id);
+    if (!fu) return null;
+    return db.updateFollowUp(id, followUpEngine.applyAnswer(fu, answer));
+  });
+  ipcMain.handle('followups:delete', (_e, id) => {
+    db.deleteFollowUp(id);
+    return true;
+  });
+
+  // Quick Note pad — low-friction capture. Classification (kind) is decided in
+  // the renderer via the slash-command parser; these are thin CRUD.
+  ipcMain.handle('notes:list', () => db.getNotes());
+  ipcMain.handle('notes:openQueue', () => db.getOpenClassifiedNotes());
+  ipcMain.handle('notes:create', (_e, payload = {}) => db.createNote({ text: payload.text, kind: payload.kind || 'note' }));
+  ipcMain.handle('notes:update', (_e, id, fields) => db.updateNote(id, fields || {}));
+  ipcMain.handle('notes:delete', (_e, id) => { db.deleteNote(id); return true; });
+
+  // Chores — one-off / daily reminders that live outside the Goals tree.
+  ipcMain.handle('chores:list', () => db.getChores());
+  ipcMain.handle('chores:create', (_e, payload = {}) => db.createChore({
+    title: payload.title,
+    recurrence: payload.recurrence || 'daily',
+    timeOfDay: payload.timeOfDay ?? null,
+    dueDate: payload.dueDate ?? null,
+    sourceNoteId: payload.sourceNoteId ?? null,
+  }));
+  ipcMain.handle('chores:update', (_e, id, fields) => db.updateChore(id, fields || {}));
+  ipcMain.handle('chores:markDone', (_e, id) => db.markChoreDone(id));
+  ipcMain.handle('chores:delete', (_e, id) => { db.deleteChore(id); return true; });
 
   // Settings (Tavily key). The raw key is never returned to the renderer —
   // it can only check presence or set a new one.

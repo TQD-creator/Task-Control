@@ -14,6 +14,11 @@
 //   - 'penalty' (dopamine overrun)      -> no exit; locked until tomorrow. The
 //                                          lock auto-clears next day on load
 //                                          (profileEngine.normalizeProfile).
+//   - 'leisure_loan' (Leisure Loan)     -> no exit; a live countdown to
+//                                          lock.expires_at. Completing the task
+//                                          early releases it; otherwise it
+//                                          auto-releases when the clock runs out
+//                                          (profileEngine.finishLeisureLoan).
 
 import React, { useCallback, useEffect, useState } from 'react';
 import ProofOfCompletionModal from '../components/ProofOfCompletionModal.jsx';
@@ -22,10 +27,19 @@ import PunishmentModal from '../components/PunishmentModal.jsx';
 import { useTaskCompletion } from '../hooks/useTaskCompletion.js';
 import { isUngaBunga } from '../lib/tone.js';
 
+function fmtClock(totalSeconds) {
+  const s = Math.max(0, totalSeconds);
+  const m = Math.floor(s / 60);
+  const sec = String(s % 60).padStart(2, '0');
+  return `${m}:${sec}`;
+}
+
 export default function FocusLockScreen({ lock, tone, onChanged, onOpenGuide }) {
   const [queue, setQueue] = useState([]);
   const [loading, setLoading] = useState(true);
   const penalty = lock.reason === 'penalty';
+  const leisure = lock.reason === 'leisure_loan';
+  const [remaining, setRemaining] = useState(null);
 
   const refreshQueue = useCallback(async () => {
     setQueue(await window.api.tasks.activeQueue());
@@ -34,6 +48,27 @@ export default function FocusLockScreen({ lock, tone, onChanged, onOpenGuide }) 
   useEffect(() => {
     refreshQueue().finally(() => setLoading(false));
   }, [refreshQueue]);
+
+  // Leisure-loan repayment: tick a live countdown to expires_at; when it hits
+  // zero, finalize the loan (which clears the lock) and refresh. Wall-clock, so
+  // it's naturally correct across a sleep — the load-time sweep is the backstop.
+  useEffect(() => {
+    if (!leisure || !lock.expires_at) { setRemaining(null); return undefined; }
+    const end = new Date(lock.expires_at).getTime();
+    let done = false;
+    const tick = async () => {
+      const left = Math.round((end - Date.now()) / 1000);
+      setRemaining(left);
+      if (left <= 0 && !done) {
+        done = true;
+        await window.api.profile.leisureFinish();
+        await onChanged();
+      }
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => { done = true; clearInterval(id); };
+  }, [leisure, lock.expires_at, onChanged]);
 
   // Completing the locked task. This callback runs AFTER any punishment menu is
   // served, so the on-disk lock already reflects a punishment that armed one —
@@ -47,6 +82,10 @@ export default function FocusLockScreen({ lock, tone, onChanged, onOpenGuide }) 
     const penaltyArmed = fresh?.focus_lock?.active && fresh.focus_lock.reason === 'penalty';
     if (penalty) {
       if (!penaltyArmed) await window.api.profile.setFocusLock(null, 'penalty');
+    } else if (leisure) {
+      // Finishing the borrowed-focus task early satisfies the repayment — unless
+      // the completion itself just armed a penalty, which must stand.
+      if (!penaltyArmed) await window.api.profile.leisureFinish();
     } else if (!penaltyArmed) {
       await window.api.profile.clearFocusLock();
     }
@@ -71,6 +110,12 @@ export default function FocusLockScreen({ lock, tone, onChanged, onOpenGuide }) 
   return (
     <div className={`focus-lock${isUngaBunga(tone) ? ' focus-lock-unga' : ''}`}>
       <div className="focus-lock-inner">
+        {leisure && (
+          <div className="focus-lock-repay">
+            <span className="focus-lock-repay-label">Repaying borrowed play</span>
+            <span className="focus-lock-repay-clock">{remaining != null ? fmtClock(remaining) : '…'}</span>
+          </div>
+        )}
         {focusTask ? (
           <>
             <div className="focus-lock-eyebrow">One thing. Nothing else.</div>
@@ -101,7 +146,11 @@ export default function FocusLockScreen({ lock, tone, onChanged, onOpenGuide }) 
               </button>
             </div>
 
-            {penalty ? (
+            {leisure ? (
+              <div className="focus-lock-note focus-lock-note-leisure">
+                Borrowed play is being repaid. Finish the task to clear it early.
+              </div>
+            ) : penalty ? (
               <div className="focus-lock-note focus-lock-note-penalty">
                 Locked until tomorrow. Execution is the only way out.
               </div>
@@ -110,6 +159,17 @@ export default function FocusLockScreen({ lock, tone, onChanged, onOpenGuide }) 
                 Stand down
               </button>
             )}
+          </>
+        ) : leisure ? (
+          // Repayment lock whose task vanished (deleted/completed elsewhere).
+          // Don't offer the picker — re-arming via setFocusLock would drop
+          // expires_at and strand the lock. The countdown clears it at zero.
+          <>
+            <div className="focus-lock-eyebrow">The bill has come due.</div>
+            <h1 className="focus-lock-title">Your borrowed play is being repaid.</h1>
+            <p className="focus-lock-empty">
+              That task is no longer available — the repayment clock keeps running and clears itself at zero.
+            </p>
           </>
         ) : (
           <>

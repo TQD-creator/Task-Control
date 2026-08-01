@@ -21,7 +21,7 @@ const LEDGER_LABELS = {
   debt: 'Time Debt',
   debt_repayment: 'Debt repaid',
   bank: 'Guilt-Free Bank',
-  bank_locked: 'Bank locked (Unga Bunga)',
+  bank_locked: 'Bank locked (Lock In)',
   boredom_tank: 'Tanked boredom',
   punishment: 'Punishment served',
 };
@@ -62,6 +62,7 @@ export default function InsightsScreen({ onBack, tone }) {
   const [spendAmt, setSpendAmt] = useState('15');
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState(null);
+  const [mirrorDir, setMirrorDir] = useState(null);
 
   const load = useCallback(async () => {
     const [p, s, rel, sched] = await Promise.all([
@@ -121,6 +122,18 @@ export default function InsightsScreen({ onBack, tone }) {
     if (res?.ok) setNotice(`Backup saved to ${res.dir}`);
     else if (res && !res.canceled) setNotice(res.error || 'Export failed.');
   }
+  async function sendToMirror() {
+    setNotice(null);
+    const res = await window.api.data.sendToMirror();
+    if (!res?.ok) {
+      setNotice(res?.error || 'Could not send data to Mirror.');
+      return;
+    }
+    setNotice(res.launched
+      ? 'Sent to Mirror. Opening it now…'
+      : `Sent to Mirror. Open Mirror and it will offer this snapshot (${res.dir}).`);
+    setMirrorDir(res.dir);
+  }
   async function importData() {
     setNotice(null);
     const res = await window.api.data.import();
@@ -158,7 +171,7 @@ export default function InsightsScreen({ onBack, tone }) {
           <div className="econ-label">Guilt-Free Bank</div>
           <div className="econ-num">{econ.guilt_free_bank_minutes} min</div>
           {unga ? (
-            <div className="econ-note">Locked in Unga Bunga mode — the streak is the reward.</div>
+            <div className="econ-note">Locked while Lock In is on — the streak is the reward.</div>
           ) : (
             <div className="econ-action">
               <input className="input econ-input" type="number" min="1" value={spendAmt} onChange={(e) => setSpendAmt(e.target.value)} />
@@ -286,6 +299,12 @@ export default function InsightsScreen({ onBack, tone }) {
         <div className="settings-row">
           <button type="button" className="button button-cancel" onClick={exportData}>Export backup…</button>
           <button type="button" className="button button-cancel" onClick={importData}>Restore backup…</button>
+          <button type="button" className="button button-cancel" onClick={sendToMirror}>Send to Mirror</button>
+          {mirrorDir && (
+            <button type="button" className="button button-cancel" onClick={() => window.api.data.revealPath(mirrorDir)}>
+              Show snapshot
+            </button>
+          )}
         </div>
         {notice && <p className="settings-notice">{notice}</p>}
       </div>

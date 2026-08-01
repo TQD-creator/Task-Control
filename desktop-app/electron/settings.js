@@ -48,4 +48,13 @@ function hasTavilyKey() {
   return !!getTavilyKey();
 }
 
-module.exports = { getTavilyKey, setTavilyKey, hasTavilyKey };
+// Optional path to the Mirror executable, used only to launch it after a
+// "Send to Mirror" handoff. Absent by default — Mirror is not packaged yet, and
+// the handoff works without it because Mirror finds the snapshot itself.
+function getMirrorPath() {
+  if (process.env.MIRROR_PATH) return process.env.MIRROR_PATH.trim();
+  const value = loadSettings().mirror_path;
+  return value ? value.trim() : null;
+}
+
+module.exports = { getTavilyKey, setTavilyKey, hasTavilyKey, getMirrorPath };

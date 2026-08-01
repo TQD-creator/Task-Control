@@ -2,6 +2,9 @@
   "name": "task-control-desktop",
   "version": "1.0.0",
   "private": true,
+  "description": "A local-first desktop productivity app: Goals → Milestones → Tasks with a time economy, adaptive behavior model, and a floating timer.",
+  "author": "Task Control",
+  "license": "UNLICENSED",
   "main": "electron/main.js",
   "scripts": {
     "dev:renderer": "vite",
@@ -9,19 +12,55 @@
     "dev": "concurrently -k \"npm:dev:renderer\" \"npm:dev:electron\"",
     "build": "vite build",
     "start": "node electron/launch.js",
-    "seed": "node seed-example.js"
+    "seed": "node seed-example.js",
+    "pack": "npm run build && electron-builder --dir",
+    "dist:app": "npm run build && electron-builder --win nsis"
   },
   "dependencies": {
-    "sql.js": "^1.11.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "sql.js": "^1.11.0"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.1",
     "concurrently": "^8.2.2",
     "cross-env": "^7.0.3",
     "electron": "^31.3.1",
+    "electron-builder": "^24.13.3",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "vite": "^5.4.1",
     "wait-on": "^7.2.0"
+  },
+  "build": {
+    "appId": "com.taskcontrol.app",
+    "productName": "Task Control",
+    "copyright": "Copyright © 2026 Task Control",
+    "directories": {
+      "output": "release",
+      "buildResources": "build-assets"
+    },
+    "files": [
+      "electron/**/*",
+      "dist/**/*",
+      "build/tray.png",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "**/node_modules/sql.js/dist/*.wasm"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Task Control",
+      "uninstallDisplayName": "Task Control"
+    }
   }
 }

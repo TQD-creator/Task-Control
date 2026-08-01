@@ -116,7 +116,14 @@ process**; the renderer gets a Zustand-equivalent mirror.
   (`window.api.timer.openWidget(milestone.id)`).
 - **DB** — `tasks.total_seconds INTEGER NOT NULL DEFAULT 0` (schema + migration).
 
-## Unga Bunga mode (feature)
+## Lock In mode (feature) — formerly "Unga Bunga"
+
+The strict mode is now called **Lock In** in the UI (commercial rename). The
+**internal tone value is unchanged** — still `personalization.tone_preference ===
+'unga_bunga'`, and the identifiers `isUngaBunga`/`UNGA_BUNGA`/`focus-lock-unga`
+stay — so no profile migration. Only user-visible strings changed (dashboard
+toggle `🔒 Lock In`, `Lock In now`, Insights labels). When renaming, keep touching
+display strings only.
 
 An opt-in anti-avoidance profile that inverts the app's soft defaults. Gated on
 `personalization.tone_preference === 'unga_bunga'` (vs. the default
@@ -150,13 +157,142 @@ An opt-in anti-avoidance profile that inverts the app's soft defaults. Gated on
   focus lock that the shell reacts to, the hook **defers** its `onCompleted`
   refresh until after the punishment is served.
 - **Single-task lock** — `profile.focus_lock` is a **computed** block (don't
-  hand-edit): `{ active, task_id, reason: 'manual' | 'penalty', locked_on }`. When
-  active, `App.jsx` replaces the whole UI with `FocusLockScreen.jsx` (the Guide is
-  the one allowed escape). `reason:'manual'` (Go Unga Bunga toggle) exits via
-  "Stand down"; `reason:'penalty'` (dopamine overrun) has no exit and auto-clears
-  the next day — `profileEngine.normalizeProfile()` clears a penalty lock whose
-  `locked_on < today()` on every load, so no background timer is needed.
-  `normalizeProfile` also backfills `focus_lock` into older profiles.
+  hand-edit): `{ active, task_id, reason: 'manual' | 'penalty' | 'leisure_loan',
+  locked_on, expires_at }`. When active, `App.jsx` replaces the whole UI with
+  `FocusLockScreen.jsx` (the Guide is the one allowed escape). `reason:'manual'`
+  (Go Unga Bunga toggle) exits via "Stand down"; `reason:'penalty'` (dopamine
+  overrun) has no exit and auto-clears the next day — `profileEngine.
+  normalizeProfile()` clears a penalty lock whose `locked_on < today()` on every
+  load, so no background timer is needed. `reason:'leisure_loan'` is the timed
+  variant (`expires_at`) documented in **Leisure Loan** below. `normalizeProfile`
+  also backfills `focus_lock` (incl. `expires_at`) into older profiles.
+
+## Leisure Loan (feature)
+
+A **commitment device** on the time-economy metaphor: borrow play time now and
+repay it as a **forced focus lock at 1.25× interest**, immediately after. It
+completes the currency set — Guilt-Free Bank (leisure *earned*), Time Debt (focus
+*owed*), Leisure Loan (leisure *borrowed*). It's positioned to fit the
+anti-avoidance ethos, not fight it: it earns its place only through a good-behavior
+gate, a once/day cap, a prep ritual, and an inescapable timed repayment — remove
+any and it degrades into a sanctioned exit.
+
+- **Flow** — `borrow → PLAY (N-min countdown) → PREP (≤5 min, ready your tools) →
+  REPAY (forced focus lock, ceil(N×1.25) min)`. Play is a *permission* window (the
+  app doesn't police what you do); repayment is enforced.
+- **Gate / scaling** — constants at the top of `profileEngine.js` (tune freely),
+  keyed off `streaks.current_streak_days`: eligible at **≥3 days**; borrow cap
+  **20 min**, rising to **30 min** + a **2nd daily use** at **≥7 days**; interest
+  **1.25×**; prep window **5 min**.
+- **State (profile JSON only — no DB/schema change)** — a top-level `leisure_loan`
+  block `{ date, uses_today, active }`; `active` is the in-progress loan
+  (`{ phase: 'play'|'prep'|'repay', task_id, borrowed_minutes, play_ends_at,
+  prep_ends_at, repay_minutes, repay_ends_at }`). Repayment reuses `focus_lock` in
+  its new **timestamp-bounded** form (`reason:'leisure_loan'` + `expires_at`) — the
+  first *timed* lock; manual/penalty locks stay untimed.
+- **Engine** (`profileEngine.js`) — `leisureLoanStatus` (pure gate read),
+  `startLeisureLoan`, `beginLeisurePrep`, `beginLeisureRepay` (arms the timed
+  lock), `finishLeisureLoan` (logs repayment, clears the lock). Ledger gains a
+  `leisure_loan` entry type (`event: 'borrow' | 'repaid'`).
+- **Enforcement / anti-gaming** lives in `normalizeLeisureLoan()`, called from
+  `normalizeProfile` so it runs on every load (no background timer): (1) **daily
+  reset** of `uses_today`; (2) **escape-proofing** — a play/prep window that fully
+  elapsed with the app closed arms the repay lock on reopen, so quitting can't
+  dodge the debt; (3) **timed release** — an expired `leisure_loan` lock is cleared
+  and finalized. All wall-clock (`ends_at − now`), naturally sleep-correct, so the
+  up-counting `timerService` is **untouched**.
+- **UI** — a **🎮 Leisure Loan** dashboard-header button (disabled with a reason
+  tooltip when ineligible) opens `LeisureLoanScreen.jsx` (borrow form + play/prep
+  countdowns). Repayment is the existing `FocusLockScreen.jsx`, extended with a
+  live countdown for `reason:'leisure_loan'`: no exit, auto-release at zero, early
+  release on completing the task. Behavior is tone-agnostic; only copy differs
+  (`tone.js` `leisure*` keys, harsher Unga Bunga framing, same numbers). IPC:
+  `leisure:*` channels → `window.api.profile.leisure*`.
+
+## Prep & Follow-ups (feature)
+
+A **sympathetic helper layer** (tone-agnostic — works in both Encouraging and Lock
+In; only copy differs) that helps the user *start* a task and *follow through* on
+the loose ends it leaves. **AI proposes, the user confirms, a deterministic engine
+tracks** — the model never fires a reminder.
+
+- **Prep phase** — `src/screens/PrepScreen.jsx` (routed in `App.jsx` as
+  `screen.name === 'prep'`, opened by the **🧰 Prepare** button on dashboard task
+  cards). Tools/materials list, a get-ready checklist, and a "what you've done"
+  notes box, persisted to a new **`tasks.prep_json`** column (serialized `{ tools:
+  [string], checklist: [{ text, done }], notes }`) via the existing `tasks:update`
+  IPC. A **✨ Suggest prep** button calls `ai:generatePrep`
+  (`AI_Service.generatePrep` → a new `PREP_FORMAT` schema + prompt through the
+  shared `callOllamaChat`/`parseJsonResponse`, no Tavily); suggestions are advisory
+  — the user taps to accept tools/steps/follow-ups. If Ollama is down the screen
+  stays fully usable manually.
+- **Follow-ups** — stateful loose ends in a new DB table **`follow_ups`**
+  (`schemaSql.js`; `CREATE TABLE IF NOT EXISTS`, so it lands on fresh + existing
+  DBs — no `ensureColumn`). DB CRUD in `database.js` (`createFollowUp`,
+  `getFollowUpsByTask`, `getPendingFollowUps`, `getDueFollowUps`, `updateFollowUp`,
+  `deleteFollowUp`). The **state machine is pure** in
+  `electron/services/followUpEngine.js` (`applyAnswer`, `initialNudgeAt`,
+  `questionFor`, `actionsFor`; renderer mirror in `src/lib/followUps.js`):
+  - `submit` — nudges near `due_date`; **Submitted** → `resolved`, **Not yet** →
+    push `next_nudge_at` out by `repeat_minutes`.
+  - `notify_wait` — `pending` ("Have you sent it?") → **Sent** → `awaiting_reply`
+    ("Have they replied?") → **Replied** → `resolved`. This is the "email the
+    professor, then repeat until they answer" loop.
+  - `custom` — single question, resolve/snooze.
+- **Reminder engine** — `reminderService.js` gains a follow-up pass
+  (`checkFollowUps`) on a tightened **5-min** loop (was 30). It fires an aggregate
+  OS notification for `getDueFollowUps(now)` and pushes each fired item out by its
+  `repeat_minutes`. **Deferral:** injected `isLocked()` (reads
+  `focus_lock.active`); while a lock is active (Lock In / Leisure Loan) both the
+  task and follow-up passes fire **nothing** and — crucially — do **not** advance
+  `next_nudge_at`, so items resume the instant the lock clears. OS toasts can't
+  carry Yes/No on Windows, so a follow-up click routes to the **in-app inbox**
+  (`onFollowUpActivate` → main `navigateMain('followups')` → `main:navigate` IPC →
+  `window.api.onNavigate` → `App` switches screen).
+- **Inbox** — `src/screens/FollowUpsInbox.jsx` (`screen.name === 'followups'`,
+  header badge **🧾 Follow-ups (N)**). Lists pending items with the state-appropriate
+  question + action buttons (`window.api.followups.answer(id, answer)` →
+  `followUpEngine.applyAnswer` → `updateFollowUp`).
+- **Not real email** — `notify_wait` tracks *your* action and *your* reported
+  reply; the app never sends or reads mail.
+
+## Quick Note pad & Chores (feature)
+
+A **low-friction capture** surface (tone-agnostic) that sidesteps the
+Goals→Milestones→Tasks setup for stray thoughts, errands, and habits. **AI is not
+involved in classification** — the user classifies explicitly with a `/`
+slash-command; a deterministic engine routes and reminds.
+
+- **Data (greenfield — two tables in `schemaSql.js`)**: `notes` (`text`, `kind`
+  ∈ `note|plan|chore|daily`, `status` ∈ `open|processed|dismissed`) and `chores`
+  (`title`, `recurrence` ∈ `daily|once`, `time_of_day` `'HH:MM'`, `due_date`,
+  `active`, `last_done_date`, `source_note_id`). Both `CREATE TABLE IF NOT EXISTS`
+  (+ `updated_at` triggers) — land on fresh + existing DBs, no `ensureColumn`. DB
+  CRUD in `database.js` (`createNote`/`getNotes`/`getOpenClassifiedNotes`/…,
+  `createChore`/`getChores`/`markChoreDone`/`getDueChores`).
+- **Slash parser** — pure `src/lib/notes.js` `parseNoteInput(text)` →
+  `{ kind, text }` (matches `^/(plan|chore|daily)\s+(.+)`; else `note`) +
+  `SLASH_COMMANDS`/`KIND_META`. Unit-tested.
+- **Routing on "process"** (the batch "boundary" in `NotesScreen.jsx`) —
+  `getOpenClassifiedNotes` listed with checkboxes + **Select all**: `chore`/`daily`
+  notes **batch-create** a `chores` row (`recurrence` `once`/`daily`) and mark the
+  note `processed`; a `plan` note routes **one at a time** to Quick Capture (App
+  sets `{ name:'capture', initialText }`; `CaptureScreen` gained an `initialText`
+  prop — the existing analyze→review→save flow is otherwise untouched). Any note
+  can be dismissed.
+- **Chore reminders** — `reminderService.js` gains a third `tick()` pass
+  `checkChores()` (own per-day de-dupe set) alongside tasks + follow-ups: fires an
+  aggregate OS notification for `db.getDueChores(today, nowHHMM)` — a **daily**
+  chore is due when `last_done_date < today` (resets next day) and a **once** chore
+  when its date arrives (dateless = due now), gated by optional `time_of_day`
+  (local). Same **`isLocked` deferral** — silent during Lock In / Leisure Loan. The
+  click routes to the Chores tab (`onChoreActivate` → `navigateMain('chores')`).
+  Dates use the app-wide UTC `today()` convention; `time_of_day` is local wall-clock.
+- **UI** — `src/screens/NotesScreen.jsx` (routed as `screen.name === 'notes'`,
+  header **📝 Notes** button; `main:navigate` handles `'notes'`/`'chores'`). Two
+  tabs: **Notes** (quick-add with a live `/` slash menu + the process panel) and
+  **Chores** (tick done, pause/resume, inline edit, delete, add form). IPC:
+  `notes:*` / `chores:*` → `window.api.notes.*` / `window.api.chores.*`.
 
 ## Insights, Smart Queue, Economy Loop, Reminders (upgrade)
 

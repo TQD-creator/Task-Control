@@ -31,7 +31,7 @@ function Badge({ effort, impact }) {
   );
 }
 
-function AllTasksView({ onOpenGuide, tone, onProfileChanged }) {
+function AllTasksView({ onOpenGuide, onOpenPrep, tone, onProfileChanged }) {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState('priority'); // 'priority' | 'date'
@@ -119,6 +119,9 @@ function AllTasksView({ onOpenGuide, tone, onProfileChanged }) {
                 {item.scheduled_date ?? 'unscheduled'} - est. {item.estimated_minutes} min
               </span>
               <div style={{ display: 'flex', alignItems: 'center' }}>
+                <button type="button" className="button button-cancel task-guide-button" onClick={() => onOpenPrep(item)}>
+                  🧰 Prepare
+                </button>
                 <button type="button" className="button button-cancel task-guide-button" onClick={() => onOpenGuide(item)}>
                   📖 Guide
                 </button>
@@ -155,9 +158,31 @@ function AllTasksView({ onOpenGuide, tone, onProfileChanged }) {
   );
 }
 
-export default function DashboardScreen({ selectedGoalId, onSelectGoal, onAddGoal, onAddMilestone, onAddTask, onCapture, onOpenGuide, onOpenInsights, tone, streaks, onProfileChanged }) {
+export default function DashboardScreen({ selectedGoalId, onSelectGoal, onAddGoal, onAddMilestone, onAddTask, onCapture, onOpenGuide, onOpenInsights, onOpenLeisure, onOpenPrep, onOpenFollowups, onOpenNotes, tone, streaks, onProfileChanged }) {
   const [goals, setGoals] = useState([]);
+  const [leisureStatus, setLeisureStatus] = useState(null);
+  const [followupCount, setFollowupCount] = useState(0);
   const unga = isUngaBunga(tone);
+
+  // Leisure Loan eligibility + pending follow-up count for the header. Fetched
+  // on mount; the dashboard unmounts while sub-flows run, so it re-fetches on
+  // return.
+  useEffect(() => {
+    window.api.profile.leisureStatus().then(setLeisureStatus).catch(() => {});
+    window.api.followups.pending().then((f) => setFollowupCount(f.length)).catch(() => {});
+  }, []);
+
+  const leisureTitle = leisureStatus?.eligible
+    ? `Borrow up to ${leisureStatus.cap_minutes} min of play — repay ${leisureStatus.interest}× as focus`
+    : leisureStatus?.reason === 'streak'
+    ? `Build a ${leisureStatus.min_streak}-day streak to unlock Leisure Loan`
+    : leisureStatus?.reason === 'used_up'
+    ? `Used up for today (${leisureStatus.uses_today}/${leisureStatus.max_uses})`
+    : leisureStatus?.reason === 'in_progress'
+    ? 'A Leisure Loan is already in progress'
+    : leisureStatus?.reason === 'locked'
+    ? "Can't borrow while you're locked in"
+    : 'Leisure Loan';
 
   const refreshGoals = useCallback(async () => {
     setGoals(await window.api.goals.list());
@@ -195,6 +220,12 @@ export default function DashboardScreen({ selectedGoalId, onSelectGoal, onAddGoa
               🔥 {streaks.current_streak_days}-day streak
             </span>
           )}
+          <button type="button" className="button button-cancel" onClick={onOpenNotes} title="Quick notes, chores & daily reminders">
+            📝 Notes
+          </button>
+          <button type="button" className="button button-cancel" onClick={onOpenFollowups} title="Answer the app's check-ins (submitted? replied?)">
+            🧾 Follow-ups{followupCount > 0 ? ` (${followupCount})` : ''}
+          </button>
           <button type="button" className="button button-cancel" onClick={onOpenInsights} title="See your stats, time economy, and history">
             📊 Insights
           </button>
@@ -202,12 +233,21 @@ export default function DashboardScreen({ selectedGoalId, onSelectGoal, onAddGoa
             type="button"
             className={`button button-cancel tone-toggle${unga ? ' tone-toggle-on' : ''}`}
             onClick={toggleTone}
-            title="Switch between encouraging and Unga Bunga tone"
+            title="Switch between Encouraging and Lock In tone"
           >
-            {unga ? '🦣 Unga Bunga: ON' : '🦣 Unga Bunga: OFF'}
+            {unga ? '🔒 Lock In: ON' : '🔒 Lock In: OFF'}
+          </button>
+          <button
+            type="button"
+            className="button button-cancel"
+            onClick={onOpenLeisure}
+            disabled={!leisureStatus?.eligible}
+            title={leisureTitle}
+          >
+            🎮 Leisure Loan
           </button>
           <button type="button" className="button button-danger" onClick={goUngaBunga} title="Lock onto one task, hide everything else">
-            Go Unga Bunga
+            Lock In now
           </button>
         </div>
       </div>
@@ -224,7 +264,7 @@ export default function DashboardScreen({ selectedGoalId, onSelectGoal, onAddGoa
       </div>
 
       {selectedGoalId === null ? (
-        <AllTasksView onOpenGuide={onOpenGuide} tone={tone} onProfileChanged={onProfileChanged} />
+        <AllTasksView onOpenGuide={onOpenGuide} onOpenPrep={onOpenPrep} tone={tone} onProfileChanged={onProfileChanged} />
       ) : (
         <GoalMilestonesView
           goalId={selectedGoalId}

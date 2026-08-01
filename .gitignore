@@ -12,6 +12,10 @@ web-build/
 !desktop-app/build/
 desktop-app/build/*
 !desktop-app/build/tray.png
+!desktop-app/build/icon.ico
+
+# Packaged installers / unpacked app (electron-builder output).
+desktop-app/release/
 
 # ─── Caches ──────────────────────────────────────────────────────────────────
 .vite/
@@ -40,6 +44,10 @@ settings.json
 !.env.example
 *.pem
 *.key
+# Code-signing certificates (private keys) for release builds — see PACKAGING.md
+# §5. Referenced via the CSC_LINK env var, never committed.
+*.pfx
+*.p12
 
 # ─── Logs & crash dumps ──────────────────────────────────────────────────────
 *.log
